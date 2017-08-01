@@ -1,0 +1,6 @@
+name = "goo-gen"
+description = "Goo code generation library"
+version = "0.1"
+archive(byte) = "goo_gen.cma"
+archive(native) = "goo_gen.cmxa"
+requires = "unix"

@@ -1,3 +1,5 @@
+#use "topfind";;
+#require "goo-gen";;
 open Goo_model
 
 let ui = package "libui"
@@ -249,3 +251,4 @@ let grid = cclass ui "grid" ~extend:control [
 let () =
   Goo_c.generate ui ~dir:"./";
   Goo_ml.generate ui ~dir:"./"
+;;

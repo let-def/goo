@@ -1,0 +1,5 @@
+name = "goo-lib"
+description = "Goo runtime support library"
+version = "0.1"
+archive(byte) = "goo_lib.cma"
+archive(native) = "goo_lib.cmxa"

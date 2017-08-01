@@ -14,9 +14,9 @@ type ('self,'events) delegate = 'self goo -> 'events -> bool
 let set_handler (goo : 'self goo) (handler : ('self, _) delegate) =
   Obj.set_field (Obj.repr goo) 1 (Obj.repr handler)
 
-let table = Cref.create ~compact:set_handle 64
-let alloc x = Cref.wref table x
-let deref x = Cref.wderef table x
+let table = Goo_ref.create ~compact:set_handle 64
+let alloc x = Goo_ref.wref table x
+let deref x = Goo_ref.wderef table x
 
 let () =
   Callback.register "ml_goo_alloc" alloc;

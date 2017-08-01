@@ -209,7 +209,7 @@ let main () =
     | "" -> ()
     | err -> failwith err
   end;
-  let mainwin = window_new "libui Control Gallery" 640 480 true in
+  let mainwin = window_new "OCaml goo/libui Control Gallery" 640 480 true in
   Goo.set_handler mainwin (fun self -> function
       | `closing -> quit (); true
       | _ -> false);
