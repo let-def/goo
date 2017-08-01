@@ -1,12 +1,12 @@
 # Goo: Cross-runtime object interface generation
 
-_Goo is an experimental_.
+_Goo is experimental_.
 
 Goo is a tool for writing high-level bindings. GUI toolkits are a natural use-case, but it is suitable for other libraries managing complex state and control flow, especially if they have an object-oriented interface.
 
-[Ctypes](https://github.com/ocamllabs/ocaml-ctypes) is effective for low-level FFI and fine grained manipulation of memory. However tracking objects lifetimes and relations is very hard.
+[Ctypes](https://github.com/ocamllabs/ocaml-ctypes) is effective for low-level FFI and fine grained manipulation of memory. However tracking objects lifetimes and relations is hard.
 
-Goo focus on this part of the problem: while losing some flexibility and efficiency of low-level bindings, it tracks and restrict the shape of the heap graph to offer cheap, type-safe and memory-safe bindings.
+Goo focus on this part of the problem: while losing some of the flexibility and efficiency of low-level bindings, it tracks and restrict the shape of the heap graph to offer cheap, type-safe and memory-safe bindings.
 
 ## Approach
 
@@ -31,4 +31,4 @@ For quick'n'dirty results, a Goo [description](examples/libui/desc.ml) of [libui
 
 # Future work
 
-There is nothing OCaml specific in Goo semantics. Adding backends for other languages should be a reasonable aamount of work.
+There is nothing OCaml specific in Goo semantics. Adding backends for other languages should be a reasonable amount of work.
