@@ -166,57 +166,40 @@ void ml_goo_set_property(goo_object *goo, unsigned int prop_id, goo_object *val)
   CAMLreturn0;
 }
 
-static const char *ml_string_data(void *v)
+const char *goo_string_data(goo_string str)
 {
-  value *ml = v;
-  return String_val(*ml);
+  return String_val(*(value*)str.data);
 }
 
-static size_t ml_string_length(void *v)
+int goo_string_length(goo_string str)
 {
-  value *ml = v;
-  return caml_string_length(*ml);
-}
-static goo_string_class ml_string = {
-  .data = ml_string_data,
-  .length = ml_string_length,
-  .release = NULL,
-};
-
-goo_string Goo_string_val_(value *str)
-{
-  goo_string result;
-  result.value = str;
-  result.table = &ml_string;
-  return result;
+  return caml_string_length(*(value*)str.data);
 }
 
-static value Val_goo_string_gen(goo_string str, goo_bool release)
+goo_string Goo_string_val(value str)
 {
-  CAMLparam0();
-  CAMLlocal1(v);
-  size_t len;
-
-  if (str.table == &ml_string)
-    return *(value*)str.value;
-
-  len = goo_string_length(str);
-  v = caml_alloc_string(len);
-  memcpy(String_val(v), goo_string_data(str), len);
-
-  if (release) goo_string_release(str);
-
-  CAMLreturn(v);
+  value *v = goo_region_alloc();
+  *v = str;
+  return (goo_string){ .data = v };
 }
 
 value Val_goo_string(goo_string str)
 {
-  return Val_goo_string_gen(str, 0);
+  return *(value*)str.data;
 }
 
-value Val_goo_string_release(goo_string str)
+goo_string null_string;
+
+goo_string goo_string_from_c(const char *string)
 {
-  return Val_goo_string_gen(str, 1);
+  return Goo_string_val(caml_copy_string(string));
+}
+
+goo_string goo_string_from_mem(const char *string, size_t len)
+{
+  value v = caml_alloc_string(len);
+  memcpy(String_val(v), string, len);
+  return Goo_string_val(v);
 }
 
 value ml_goo_cast(value vobject, value vwitness)

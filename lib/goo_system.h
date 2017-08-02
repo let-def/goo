@@ -4,7 +4,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "goo_types.h"
+
+/* Primitive types */
+
+typedef int goo_bool;
+
+typedef struct {
+  void *data;
+} goo_string;
+
+const char *goo_string_data(goo_string str);
+int goo_string_length(goo_string str);
+
+goo_string null_string;
+
+goo_string goo_string_from_c(const char *string);
+goo_string goo_string_from_mem(const char *string, size_t len);
 
 /* Basic definitions of object system.
  *

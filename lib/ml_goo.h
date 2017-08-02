@@ -35,11 +35,8 @@ void ml_goo_set_property(goo_object *goo, unsigned int prop_id, goo_object *val)
 #define $ml_goo_set_property(goo, prop, val) \
     ml_goo_set_property($as(goo, goo_object), prop, $as(val, goo_object))
 
-goo_string Goo_string_val_(value *str);
-#define Goo_string_val(v) Goo_string_val_(&(v))
-
+goo_string Goo_string_val(value str);
 value Val_goo_string(goo_string str);
-value Val_goo_string_release(goo_string str);
 
 value ml_goo_cast(value object, value witness);
 
