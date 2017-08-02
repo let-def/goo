@@ -13,7 +13,7 @@ goo_region_t goo_region_enter(void);
 void goo_region_leave(goo_region_t region);
 value *goo_region_alloc(void);
 
-#define GOO_ENTER_REGION region_t goo_region = goo_region_enter()
+#define GOO_ENTER_REGION goo_region_t goo_region = goo_region_enter()
 #define GOO_LEAVE_REGION goo_region_leave(goo_region)
 
 goo_object *Goo_val(value v);
@@ -24,9 +24,6 @@ value Val_goo(goo_object *goo);
 
 value Val_goo_option(goo_object *goo);
 #define $Val_goo_option(goo) Val_goo_option($as(goo, goo_object))
-
-value Val_goo_alloc(goo_object *goo);
-value Val_goo_get(goo_object *goo);
 
 value Val_goo_handler_helper(goo_object *goo);
 #define $Val_goo_handler_helper(goo) Val_goo_handler_helper($as(goo, goo_object))

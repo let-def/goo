@@ -287,6 +287,7 @@ let print_ml_c_stubs pkg o =
       print o "value ml_%s(%s)" (func_name pkg func) (n_args argc);
       o "{";
       caml_param o argc;
+      o "  GOO_ENTER_REGION;";
       let args = String.concat ", " args in
       let call = sprint "%s(%s)" (func_name pkg func) args in
       begin match func.I.fn_ret with
@@ -300,9 +301,12 @@ let print_ml_c_stubs pkg o =
             | Cobject _ -> "$Val_goo"
             | Custom _ -> assert false
           in
-          print o "  CAMLreturn(%s(%s));" inj call
+          print o "  value goo_result = %s(%s);" inj call;
+          o "  GOO_LEAVE_REGION;";
+          o "  CAMLreturn(goo_result);";
         | None ->
           print o "  %s;" call;
+          o "  GOO_LEAVE_REGION;";
           o "  CAMLreturn(Val_unit);"
       end;
       o "}";
@@ -333,6 +337,7 @@ let print_ml_c_stubs pkg o =
             print o "value ml_%s_%s(%s)" cname name (n_args argc);
             o "{";
             caml_param o argc;
+            o "  GOO_ENTER_REGION;";
             let args = String.concat ", " args in
             let call =
               if static then
@@ -351,9 +356,12 @@ let print_ml_c_stubs pkg o =
                   | Cobject _ -> "$Val_goo"
                   | Custom _ -> assert false
                 in
-                print o "  CAMLreturn(%s(%s));" inj call
+                print o "  value goo_result = %s(%s);" inj call;
+                o "  GOO_LEAVE_REGION;";
+                o "  CAMLreturn(goo_result);";
               | None ->
                 print o "  %s;" call;
+                o "  GOO_LEAVE_REGION;";
                 o "  CAMLreturn(Val_unit);"
             end;
             o "}";
@@ -363,16 +371,20 @@ let print_ml_c_stubs pkg o =
             print o "value ml_%s_set_%s(value self, value arg)" cname name;
             o "{";
             o "  CAMLparam2(self, arg);";
+            o "  GOO_ENTER_REGION;";
             print o "  %s *obj = $Goo_val(self, %s);" cname cname;
             print o "  $send(obj,set_%s)(obj, $Goo_val(arg, %s));" name (c_class_name cclass);
+            o "  GOO_LEAVE_REGION;";
             print o "  CAMLreturn(Val_unit);";
             o "}";
             o "";
             print o "value ml_%s_unset_%s(value self)" cname name;
             o "{";
             o "  CAMLparam1(self);";
+            o "  GOO_ENTER_REGION;";
             print o "  %s *obj = $Goo_val(self, %s);" cname cname;
             print o "  $send(obj,set_%s)(obj, NULL);" name;
+            o "  GOO_LEAVE_REGION;";
             print o "  CAMLreturn(Val_unit);";
             o "}";
           | Constructor (name, args, _) ->
@@ -391,9 +403,12 @@ let print_ml_c_stubs pkg o =
             print o "value ml_%s_%s(%s)" cname name (n_args (List.length args));
             o "{";
             caml_param o (List.length args);
+            o "  GOO_ENTER_REGION;";
             let args = String.concat ", " args in
             let call = sprint "%s_%s(%s)" cname name args in
-            print o "  CAMLreturn($Val_goo(%s));" call;
+            print o "  value goo_result = $Val_goo(%s);" call;
+            o "  GOO_LEAVE_REGION;";
+            print o "  CAMLreturn(goo_result);";
             o "}";
           | Event (name, args) ->
             o "";

@@ -39,5 +39,5 @@ void  libui_multiline_entry_set_text(libui_multiline_entry *self, goo_string tex
 
 goo_string  libui_multiline_entry_text(libui_multiline_entry *self)
 {
-  return goo_string_from_c(uiMultilineEntryText(WIDGET), 0);
+  return goo_string_from_c(uiMultilineEntryText(WIDGET));
 }

@@ -20,7 +20,8 @@ let deref x = Goo_ref.wderef table x
 
 let () =
   Callback.register "ml_goo_alloc" alloc;
-  Callback.register "ml_goo_deref" deref
+  Callback.register "ml_goo_deref" deref;
+  Callback.register "ml_goo_string" "";
 
 external compare : _ goo -> _ goo -> int = "ml_goo_compare" [@@noalloc]
 external hash : _ goo -> int = "ml_goo_hash" [@@noalloc]

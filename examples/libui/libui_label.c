@@ -15,5 +15,5 @@ void libui_label_set_text(libui_label *self, goo_string text)
 
 goo_string libui_label_text(libui_label *self)
 {
-  return goo_string_from_c(uiLabelText(WIDGET), 0);
+  return goo_string_from_c(uiLabelText(WIDGET));
 }

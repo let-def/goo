@@ -23,15 +23,18 @@ goo_object *Goo_val(value handle)
 
 value ml_goo_set_handle(value handle, value index)
 {
+  goo_assert ((index & 1) != 0);
   goo_object *obj = Goo_val(handle);
-  goo_object_set_handle(obj, (void*)Long_val(index));
+  $field(obj, handle_) = (void*)index;
   return Val_unit;
 }
 
 value ml_goo_get_handle(value handle)
 {
   goo_object *obj = Goo_val(handle);
-  return Val_long(goo_object_get_handle(obj));
+  value index = (value)$field(obj, handle_);
+  goo_assert ((index & 1) != 0);
+  return index;
 }
 
 static void goo_finalize(value handle)
@@ -77,60 +80,45 @@ static struct custom_operations goo_custom_ops = {
     deserialize: custom_deserialize_default
 };
 
-value Val_goo_alloc(goo_object *goo)
+static value Val_goo_alloc(goo_object *goo)
 {
-  CAMLparam0();
-  CAMLlocal2(custom, block);
-  int i, count;
+  value block, *root = goo_region_alloc();
 
-  if ($field(goo, handle_) != NULL) abort();
+  *root = caml_alloc_custom(&goo_custom_ops, sizeof(goo_object *), 0, 1);
+  *(goo_object**)(Data_custom_val(*root)) = goo;
 
-  custom = caml_alloc_custom(&goo_custom_ops, sizeof(goo_object *), 0, 1);
-  *(goo_object**)(Data_custom_val(custom)) = goo;
-
-  count = 2 + $number_of_properties(goo);
-  block = caml_alloc_tuple(count);
-  Field(block, 0) = custom;
-
-  for (i = 1; i < count; ++i)
-    Field(block, i) = Val_unit;
+  block = caml_alloc_tuple(2 + $number_of_properties(goo));
+  Field(block, 0) = *root;
+  *root = block;
 
   static value * alloc_id = NULL;
-  if (alloc_id == NULL) {
+  if (alloc_id == NULL)
     alloc_id = caml_named_value("ml_goo_alloc");
-  }
 
-  value result = caml_callback(*alloc_id, block);
+  value result = caml_callback_exn(*alloc_id, block);
   if (Is_exception_result(result)) abort();
 
   printf("allocated id %ld\n", Long_val(result));
-  goo_object_set_handle(goo, (void*)result);
+  goo_assert((result & 1) != 0);
+  $field(goo, handle_) = (void*)result;
 
-  CAMLreturn(block);
-}
-
-value Val_goo_get(goo_object *goo)
-{
-  static value *deref = NULL;
-  if (deref == NULL) {
-    deref = caml_named_value("ml_goo_deref");
-  }
-
-  if ($field(goo, handle_) == NULL) abort();
-
-  printf("accessing id %ld\n", Long_val((value)goo_object_get_handle(goo)));
-  value result = caml_callback(*deref, (value)goo_object_get_handle(goo));
-  if (Is_exception_result(result)) abort();
-
-  return result;
+  return block;
 }
 
 value Val_goo(goo_object *goo)
 {
   if ($field(goo, handle_) == NULL)
     return Val_goo_alloc(goo);
-  else
-    return Val_goo_get(goo);
+
+  static value *deref = NULL;
+  if (deref == NULL)
+    deref = caml_named_value("ml_goo_deref");
+
+  printf("accessing id %ld\n", Long_val((value)$field(goo, handle_)));
+  value result = caml_callback_exn(*deref, (value)$field(goo, handle_));
+  if (Is_exception_result(result)) abort();
+
+  return result;
 }
 
 value Val_goo_option(goo_object *goo)
@@ -145,7 +133,7 @@ value Val_goo_handler_helper(goo_object *goo)
 {
   if ($field(goo, handle_) == NULL)
     return Val_unit;
-  value inst = Val_goo_get(goo);
+  value inst = Val_goo(goo);
   if (Field(inst, 1) == Val_unit)
     return Val_unit;
   return inst;
@@ -156,7 +144,7 @@ void ml_goo_set_property(goo_object *goo, unsigned int prop_id, goo_object *val)
   CAMLparam0();
   CAMLlocal2(vgoo, vval);
 
-  vgoo = Val_goo_get(goo);
+  vgoo = Val_goo(goo);
   vval = (val == NULL) ? Val_unit : Val_goo(val);
 
   if (prop_id + 2 >= Wosize_val(vgoo)) abort();
@@ -185,14 +173,21 @@ goo_string Goo_string_val(value str)
 
 value Val_goo_string(goo_string str)
 {
-  return *(value*)str.data;
+  if (str.data)
+    return *(value*)str.data;
+
+  static value *string_null = NULL;
+  if (string_null == NULL)
+    string_null = caml_named_value("ml_goo_string");
+
+  return *string_null;
 }
 
 goo_string null_string;
 
 goo_string goo_string_from_c(const char *string)
 {
-  return Goo_string_val(caml_copy_string(string));
+  return Goo_string_val(caml_copy_string(string ? string : ""));
 }
 
 goo_string goo_string_from_mem(const char *string, size_t len)
@@ -300,7 +295,7 @@ static void region_release(region_t *region)
 
 goo_region_t goo_region_enter(void)
 {
-  if (region_root = NULL)
+  if (region_root == NULL)
   {
     region_root = region_alloc();
     region_root->desc.next = caml_local_roots;

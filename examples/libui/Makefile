@@ -2,7 +2,7 @@ GOO_LIB=$(shell ocamlfind query goo-lib)
 CFLAGS = -g -I $(GOO_LIB)
 LDFLAGS = -g -lui
 
-GOO_SOURCES=$(GOO_LIB)/goo_system.c $(GOO_LIB)/goo_types.c $(GOO_LIB)/ml_goo.c
+GOO_SOURCES=$(GOO_LIB)/goo_system.c $(GOO_LIB)/ml_goo.c
 C_SOURCES = $(wildcard *.c) libui_stubs.c
 C_OBJECTS = $(patsubst %.c, %.o, $(C_SOURCES)) $(patsubst $(GOO_LIB)/%.c, %.o, $(GOO_SOURCES))
 
@@ -13,7 +13,7 @@ all: test
 test: $(C_OBJECTS) $(ML_SOURCES)
 	ocamlfind opt -package goo-lib -linkpkg -cclib "$(LDFLAGS)" -o $@ -g  -I . $^
 
-$(ML_SOURCES) $(C_SOURCES): libui.ml
+controlgallery.ml $(C_SOURCES): libui.ml
 
 %.o: %.c %.h
 	ocamlc -c -ccopt "$(CFLAGS)" -c -g $<
@@ -25,9 +25,7 @@ $(ML_SOURCES) $(C_SOURCES): libui.ml
 	ocamlc -c -ccopt "$(CFLAGS)" -c -g $<
 
 clean:
-	rm -f *.o
+	rm -f *.o libui_stubs.c
 
-libui.ml: desc.ml
+libui_stubs.c libui.ml: desc.ml
 	ocaml desc.ml
-
-libui_stubs.c: libui.ml

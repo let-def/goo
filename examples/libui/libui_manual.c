@@ -7,7 +7,7 @@ goo_string libui_init(void)
   const char *result = uiInit(&o);
   if (result)
   {
-    goo_string r = goo_string_from_c(strdup(result), 1);
+    goo_string r = goo_string_from_c(result);
     uiFreeInitError(result);
     return r;
   }
@@ -47,7 +47,7 @@ goo_string libui_open_file(libui_window *parent)
 
   if (fname)
   {
-    result = goo_string_from_c(strdup(fname), 1);
+    result = goo_string_from_c(fname);
     uiFreeText(fname);
   }
   return result;
@@ -60,7 +60,7 @@ goo_string libui_save_file(libui_window *parent)
 
   if (fname)
   {
-    result = goo_string_from_c(strdup(fname), 1);
+    result = goo_string_from_c(fname);
     uiFreeText(fname);
   }
   return result;

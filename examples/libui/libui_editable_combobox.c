@@ -21,7 +21,7 @@ void libui_editable_combobox_set_text(libui_editable_combobox *self, goo_string 
 
 goo_string libui_editable_combobox_text(libui_editable_combobox *self)
 {
-  return goo_string_from_c(uiEditableComboboxText(WIDGET), 0);
+  return goo_string_from_c(uiEditableComboboxText(WIDGET));
 }
 
 void libui_editable_combobox_append(libui_editable_combobox *self, goo_string text)

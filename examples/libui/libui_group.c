@@ -25,7 +25,7 @@ void libui_group_set_title(libui_group *self, goo_string title)
 
 goo_string libui_group_title(libui_group *self)
 {
-  return goo_string_from_c(uiGroupTitle(WIDGET), 0);
+  return goo_string_from_c(uiGroupTitle(WIDGET));
 }
 
 void libui_group_child_connect(libui_group *self, libui_control *child)

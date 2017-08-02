@@ -46,5 +46,5 @@ void libui_entry_set_text(libui_entry *self, goo_string text)
 
 goo_string libui_entry_text(libui_entry *self)
 {
-  return goo_string_from_c(uiEntryText(WIDGET), 0);
+  return goo_string_from_c(uiEntryText(WIDGET));
 }

@@ -21,5 +21,5 @@ void libui_button_set_text(libui_button *self, goo_string text)
 
 goo_string libui_button_text(libui_button *self)
 {
-  return goo_string_from_c(uiButtonText(WIDGET), 0);
+  return goo_string_from_c(uiButtonText(WIDGET));
 }

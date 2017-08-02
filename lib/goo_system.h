@@ -293,12 +293,6 @@ GOO_CLASS_HIERARCHY(goo_object)
 
 void *goo_dyncast_(goo_object *, const goo_class_witness * witness);
 
-void *goo_object_get_handle(goo_object *);
-#define $goo_object_get_handle(self) goo_object_init($as(self,goo_object))
-
-void goo_object_set_handle(goo_object *, void *);
-#define $goo_object_set_handle(self, v) goo_object_set_handle($as(self,goo_object), v)
-
 void goo_object_init(goo_object *);
 #define $goo_object_init(self) goo_object_init($as(self,goo_object))
 

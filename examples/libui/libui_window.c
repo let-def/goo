@@ -77,7 +77,7 @@ void libui_window_set_title(libui_window *self, goo_string title)
 
 goo_string libui_window_title(libui_window *self)
 {
-  return goo_string_from_c(uiWindowTitle(WIDGET), 0);
+  return goo_string_from_c(uiWindowTitle(WIDGET));
 }
 
 void libui_window_child_connect(libui_window *self, libui_control *child)

@@ -31,5 +31,5 @@ void libui_checkbox_set_text(libui_checkbox *self, goo_string text)
 
 goo_string libui_checkbox_text(libui_checkbox *self)
 {
-  return goo_string_from_c(uiCheckboxText(WIDGET), 0);
+  return goo_string_from_c(uiCheckboxText(WIDGET));
 }
