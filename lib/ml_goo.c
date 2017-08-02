@@ -277,3 +277,94 @@ void ml_goo_port_disconnect(goo_object *source, unsigned int table_prop, goo_obj
   if (callback) callback(source, target);
   CAMLreturn0;
 }
+
+typedef struct {
+  struct caml__roots_block desc;
+  value values[1024];
+} region_t;
+
+static struct caml__roots_block root_sentinel = { .nitems = 0, .ntables = 0, .next = NULL };
+
+region_t *region_root, *spare_region;
+
+static region_t *region_alloc()
+{
+  region_t *result;
+  if (spare_region)
+  {
+    result = spare_region;
+    spare_region = NULL;
+  }
+  else
+    result = malloc(sizeof(region_t) + sizeof(value) * 1024);
+
+  goo_assert (result);
+  result->desc.next = NULL;
+  result->desc.nitems = 0;
+  result->desc.ntables = 1;
+  result->desc.tables[0] = result->values;
+
+  return result;
+}
+
+static void region_release(region_t *region)
+{
+  if (spare_region)
+    free(region);
+  else
+    spare_region = region;
+}
+
+goo_region_t goo_region_enter(void)
+{
+  if (region_root = NULL)
+  {
+    region_root = region_alloc();
+    region_root->desc.next = caml_local_roots;
+
+    root_sentinel.next = &region_root->desc;
+    caml_local_roots = &root_sentinel;
+    return (goo_region_t){ .block = region_root, .fill = -1 };
+  }
+  else
+    return (goo_region_t){ .block = region_root, .fill = region_root->desc.nitems };
+}
+
+void goo_region_leave(goo_region_t region)
+{
+  goo_assert (region_root);
+  while (region.block != root_sentinel.next)
+  {
+    region_t *current = (region_t*)root_sentinel.next;
+    root_sentinel.next = current->desc.next;
+    region_release(current);
+  }
+  if (region.fill == -1)
+  {
+    goo_assert (caml_local_roots == &root_sentinel);
+    caml_local_roots = region_root->desc.next;
+    region_release(region_root);
+    region_root = NULL;
+  }
+  else
+    root_sentinel.next->nitems = region.fill;
+}
+
+value *goo_region_alloc(void)
+{
+  goo_assert (region_root);
+
+  if (root_sentinel.next->nitems < 1024)
+  {
+    int n = root_sentinel.next->nitems;
+    root_sentinel.next->nitems += 1;
+    return &((region_t*)root_sentinel.next)->values[n];
+  }
+
+  region_t *region = region_alloc();
+  region->desc.next = root_sentinel.next;
+  root_sentinel.next = &region->desc;
+  region->desc.nitems = 1;
+  region->values[0] = Val_unit;
+  return &region->values[0];
+}

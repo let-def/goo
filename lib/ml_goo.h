@@ -4,6 +4,18 @@
 #include "caml/mlvalues.h"
 #include "goo_system.h"
 
+typedef struct {
+  void *block;
+  int fill;
+} goo_region_t;
+
+goo_region_t goo_region_enter(void);
+void goo_region_leave(goo_region_t region);
+value *goo_region_alloc(void);
+
+#define GOO_ENTER_REGION region_t goo_region = goo_region_enter()
+#define GOO_LEAVE_REGION goo_region_leave(goo_region)
+
 goo_object *Goo_val(value v);
 #define $Goo_val(goo, typ) $cast(Goo_val(goo), typ)
 
