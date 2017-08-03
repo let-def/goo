@@ -453,8 +453,10 @@ let guard_header o n f =
   result
 
 let with_file ~force name f =
-  if Sys.file_exists name && not force then () else
-    let oc = open_out name in
+  let file_exists = Sys.file_exists name in
+  if file_exists && not force then () else
+    let name' = if file_exists then "." ^ name else name in
+    let oc = open_out name' in
     let last_blank = ref true in
     let output_line line =
       let blank = line = "" in
@@ -464,12 +466,23 @@ let with_file ~force name f =
       );
       last_blank := blank
     in
+    let cleanup () =
+      close_out_noerr oc;
+      if file_exists then (
+        let hash = Digest.file name in
+        let hash' = Digest.file name' in
+        if Digest.equal hash hash' then
+          Sys.remove name'
+        else
+          Sys.rename name' name
+      )
+    in
     try
       let r = f output_line in
-      close_out_noerr oc;
+      cleanup ();
       r
     with exn ->
-      close_out_noerr oc;
+      cleanup ();
       raise exn
 
 let generate pkg ~dir =

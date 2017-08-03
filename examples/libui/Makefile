@@ -26,5 +26,9 @@ controlgallery.ml $(C_SOURCES): libui.ml libui.h
 clean:
 	rm -f *.o libui_stubs.c libui.h
 
-libui_stubs.c libui.ml libui.h: desc.ml
+.PHONY: libui.ml
+
+libui.ml:
 	ocaml desc.ml
+
+libui_stubs.c libui.h: libui.ml 
