@@ -335,13 +335,13 @@ let print_class_impl_h cl_main o =
         | latest when latest != cl_main -> ()
         | latest ->
           print_function o None (method_name cl_main name)
-            (add_self cl ["arg", Cobject typ]) false None;
+            (add_self cl ["arg", cobject typ]) false None;
           if cl_main == cl then (
             print o "static void super_%s(%s *self, %s *val)"
               name (class_name cl_main) (class_name typ);
             print o "{ *(%s **)(&$field(self, %s)) = val; $ml_goo_set_property(self, %d, val); }"
               (class_name typ) field_name (property_index cl_main field_name);
-            print_proxy o ("super_" ^ name) (add_self cl_main ["val", Cobject typ])
+            print_proxy o ("super_" ^ name) (add_self cl_main ["val", cobject typ])
           );
           (match lookup_parent_override name latest with
            | exception Not_found -> ()
@@ -362,19 +362,21 @@ let print_class_impl_h cl_main o =
       print o "#define self_on_%s %s" name (method_name cl ("on_" ^ name));
       (*print_proxy o ("self_on_" ^ name) (add_self cl args);*)
     | Collection (name, port) ->
-      let target = Cobject (I.port_target port) in
+      let target = cobject (I.port_target port) in
       print_collection_method cl (on_ name "disconnect") ["object", target];
       print o "GOO_INTERNAL_COLLECTION(%s, %s, %d, %s, %s, %d);"
         (class_name cl) name (property_index cl name)
         (class_name (I.port_target port)) (I.port_name port)
         (property_index (I.port_target port) (I.port_name port));
+      print_proxy o ("connect_" ^ name) (add_self cl_main ["that", target; "after_that", custom (class_name cl ^ "*")])
     | Slot (name, port) ->
-      let target = Cobject (I.port_target port) in
+      let target = cobject (I.port_target port) in
       print_collection_method cl (on_ name "disconnect") ["object", target];
       print o "GOO_INTERNAL_SLOT(%s, %s, %d, %s, %s, %d);"
         (class_name cl) name (property_index cl name)
         (class_name (I.port_target port)) (I.port_name port)
         (property_index (I.port_target port) (I.port_name port));
+      print_proxy o ("connect_" ^ name) (add_self cl_main ["item", target])
     | Port (name, port) ->
       print_collection_method cl (on_ name "disconnect") []
     | _ -> ()

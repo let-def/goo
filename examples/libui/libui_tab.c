@@ -32,12 +32,12 @@ void libui_tab_insert_at(libui_tab *self, goo_string name, int before, libui_con
     for (int i = 1; i < before && after; ++i)
       after = libui_tab_tabs_next(after);
   }
-  _connect_tabs(self, child, after);
+  $static(connect,tabs)(self, child, after);
   uiTabInsertAt(WIDGET, goo_string_data(name), before, $field(child, control));
 }
 
 void libui_tab_append(libui_tab *self, goo_string name, libui_control *child)
 {
-  _connect_tabs(self, child, libui_tab_tabs_last(self));
+  $static(connect,tabs)(self, child, libui_tab_tabs_last(self));
   uiTabAppend(WIDGET, goo_string_data(name), $field(child, control));
 }

@@ -505,7 +505,7 @@ struct goo_collection {
     return result;                                                            \
   }                                                                           \
                                                                               \
-  static void _connect_##source_field(source *self, target *that, target *after_that) \
+  static void connect_##source_field(source *self, target *that, target *after_that) \
   {                                                                           \
     goo_assert (self != NULL && that != NULL);                                \
     /* Incorrect use: put after a child belonging to another container. */    \
@@ -560,7 +560,7 @@ struct goo_collection {
     return result;                                                        \
   }                                                                       \
                                                                           \
-  static void $connect_##source_field(source *self, target *that)         \
+  static void connect_##source_field(source *self, target *that)         \
   {                                                                       \
     goo_assert (self != NULL && that != NULL);                            \
                                                                           \

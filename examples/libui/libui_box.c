@@ -30,6 +30,6 @@ void libui_box_set_padded(libui_box *self, goo_bool padded)
 
 void libui_box_append(libui_box *self, libui_control *child, goo_bool stretchy)
 {
-  _connect_children(self, child, libui_box_children_last(self));
+  $static(connect,children)(self, child, libui_box_children_last(self));
   uiBoxAppend(WIDGET, $field(child, control), stretchy);
 }

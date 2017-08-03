@@ -11,7 +11,7 @@ libui_menu *libui_menu_new(goo_string name)
 static libui_menu_item *append(libui_menu *self, uiMenuItem *item)
 {
   libui_menu_item *result = libui_menu_item_new(item);
-  _connect_items(self, result, libui_menu_items_last(self));
+  $static(connect,items)(self, result, libui_menu_items_last(self));
   return result;
 }
 

@@ -29,6 +29,6 @@ void libui_form_delete(libui_form *self, libui_control *child)
 
 void libui_form_append(libui_form *self, goo_string name, libui_control *c, goo_bool stretchy)
 {
-  _connect_children(self, c, libui_form_children_last(self));
+  $static(connect,children)(self, c, libui_form_children_last(self));
   uiFormAppend(WIDGET, goo_string_data(name), $field(c, control), stretchy);
 }
