@@ -22,7 +22,7 @@ type ctype =
   | Int
   | Float
   | String
-  | Cobject of cclass
+  | Cobject of cclass * bool
   | Custom of string
   | Enum of enum
 val int: ctype
@@ -65,7 +65,7 @@ type field =
 type fields = field list
 
 val cclass : package -> ?extend:cclass -> name -> fields list -> cclass
-val cobject: cclass -> ctype
+val cobject: ?optional:unit -> cclass -> ctype
 val group: fields list -> fields
 val fields: cclass -> fields list -> unit
 

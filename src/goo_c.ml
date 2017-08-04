@@ -15,7 +15,8 @@ let ctype ident = function
   | Float     -> sprint "double %s" ident
   | String    -> sprint "goo_string %s" ident
   | Enum e    -> sprint "%s %s" (enum_name e) ident
-  | Cobject t -> sprint "%s *%s" (class_name t) ident
+  | Cobject (t, false) -> sprint "%s *%s" (class_name t) ident
+  | Cobject (t, true)  -> sprint "goo_option %s *%s" (class_name t) ident
   | Custom s  -> sprint "%s %s" s ident
 
 let ctype_opt = function
@@ -58,7 +59,7 @@ let param_list = function
   | params ->
     String.concat ", " (List.map (fun (name, ty) -> ctype name ty) params)
 
-let add_self c params = ("self", Cobject c) :: params
+let add_self c params = ("self", cobject c) :: params
 
 let param_self_list c params = param_list (add_self c params)
 
@@ -66,7 +67,7 @@ let arg_list xs = String.concat ", " (List.map fst xs)
 
 let print_proxy o name args  =
   let arg = function
-    | (k, Cobject cclass) -> sprint "$as(%s, %s)" k (class_name cclass)
+    | (k, Cobject (cclass, _)) -> sprint "$as(%s, %s)" k (class_name cclass)
     | (k, _) -> k
   in
   let actual = String.concat "," (List.map arg args) in
@@ -100,9 +101,9 @@ let lookup_method name cl_main =
   let rec aux cl =
     match List.find pred (I.class_fields cl) with
     | Method (_, args, ret, _, _) -> (ret, args)
-    | Variable (_, Cobject typ) -> (None, ["val", Cobject typ])
-    | Collection (_, port) -> (None, ["object", Cobject (I.port_target port)])
-    | Slot (name', port) -> (None, ["object", Cobject (I.port_target port)])
+    | Variable (_, (Cobject _ as typ)) -> (None, ["val", typ])
+    | Collection (_, port) -> (None, ["object", cobject (I.port_target port)])
+    | Slot (name', port) -> (None, ["object", cobject (I.port_target port)])
     | Port (_, _) -> (None, [])
     | _ -> assert false
     | exception Not_found ->
@@ -159,8 +160,8 @@ let print_class_methods o cl_main =
   iter_all_fields cl_main (fun _ -> function
       | Method (name, args, ret, _, false) ->
         print_method name args ret;
-      | Variable (name, Cobject cclass) ->
-        print_method ("set_"^name) ["val", Cobject cclass] None;
+      | Variable (name, (Cobject _ as typ)) ->
+        print_method ("set_"^name) ["val", typ] None;
       | Collection (name, p) ->
         print o "  GOO_COLLECTION_METHODS(%s, %s, %s);"
           cname name (class_name (I.port_target p))
@@ -189,7 +190,7 @@ let print_class_fields o cl_main =
       | Collection (name, _) ->
         print o "  goo_collection %s;" name
       | Slot (name, p) ->
-        print o "  %s;" (ctype name (Cobject (I.port_target p)))
+        print o "  %s;" (ctype ("const " ^ name) (Cobject (I.port_target p, true)))
       | Port (name, _) ->
         print o "  goo_port %s;" name
       | _ -> ()
@@ -202,8 +203,8 @@ let print_class_method_prototypes o cl =
       | Method (name, args, ret, _, _) ->
         print_method o ret cl name args true None;
         o "";
-      | Variable (name, Cobject cclass) ->
-        print_method o None cl ("set_" ^ name) ["val", Cobject cclass] true None;
+      | Variable (name, (Cobject _ as typ)) ->
+        print_method o None cl ("set_" ^ name) ["val", typ] true None;
         o "";
       | Event (name, args) ->
         print_method o (Some bool) cl ("on_" ^ name) args true None;
@@ -213,14 +214,14 @@ let print_class_method_prototypes o cl =
         print_method o ret cl name args true None;
         o "";
       | Constructor (name, args, _) ->
-        print_function o (Some (Cobject cl)) (method_name cl name) args true None;
+        print_function o (Some (cobject cl)) (method_name cl name) args true None;
         o "";
       | Collection (name, port) ->
-        let target = Cobject (I.port_target port) in
+        let target = cobject (I.port_target port) in
         print_method o None cl (on_ name "disconnect") ["object", target] true None;
         o "";
       | Slot (name, port) ->
-        let target = Cobject (I.port_target port) in
+        let target = cobject (I.port_target port) in
         print_method o None cl (on_ name "disconnect") ["object", target] true None;
         o "";
       | Port (name, _) ->
@@ -287,7 +288,7 @@ let iter_methods_to_impl cl f =
         let ret, args = lookup_method name cl in
         f (ctype_opt ret) name (param_self_list cl args) body
       | Constructor (name, args, body) ->
-        f (ctype "" (Cobject cl)) name (param_list args) body
+        f (ctype "" (cobject cl)) name (param_list args) body
       | _ -> ()
     ) (I.class_fields cl)
 
@@ -328,20 +329,20 @@ let print_class_impl_h cl_main o =
           let previous = try lookup_override name super with Not_found -> cl in
           print o "#define super_%s %s" name (method_name previous name)
       )
-    | Variable (field_name, Cobject typ) ->
+    | Variable (field_name, (Cobject (cls, _) as typ)) ->
       let name = "set_" ^ field_name in
       print o "#define self_%s %s" name (method_name cl name);
       begin match lookup_override name cl_main with
         | latest when latest != cl_main -> ()
         | latest ->
           print_function o None (method_name cl_main name)
-            (add_self cl ["arg", cobject typ]) false None;
+            (add_self cl ["arg", typ]) false None;
           if cl_main == cl then (
             print o "static void super_%s(%s *self, %s *val)"
-              name (class_name cl_main) (class_name typ);
+              name (class_name cl_main) (class_name cls);
             print o "{ *(%s **)(&$field(self, %s)) = val; $ml_goo_set_property(self, %d, val); }"
-              (class_name typ) field_name (property_index cl_main field_name);
-            print_proxy o ("super_" ^ name) (add_self cl_main ["val", cobject typ])
+              (class_name cls) field_name (property_index cl_main field_name);
+            print_proxy o ("super_" ^ name) (add_self cl_main ["val", typ])
           );
           (match lookup_parent_override name latest with
            | exception Not_found -> ()
@@ -349,10 +350,10 @@ let print_class_impl_h cl_main o =
              print o "#define super_%s %s_%s" name (class_name previous) name
           )
         | exception Not_found when cl_main == cl ->
-          let args = add_self cl ["val", cobject typ] in
+          let args = add_self cl ["val", typ] in
           print_function o None (method_name cl name) args false (Some [
               sprint "  *(%s **)(&$field(self, %s)) = val;"
-                (class_name typ) field_name;
+                (class_name cls) field_name;
               sprint "  $ml_goo_set_property(self, %d, val);"
                 (property_index cl_main field_name);
             ]);

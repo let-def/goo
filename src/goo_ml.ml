@@ -28,7 +28,8 @@ let mltype pkg = function
   | Float     -> "float"
   | String    -> "string"
   | Enum e    -> enum_name e
-  | Cobject t -> sprint "[> %s] goo" (class_name pkg t)
+  | Cobject (t, false) -> sprint "[> %s] goo" (class_name pkg t)
+  | Cobject (t, true) -> sprint "[> %s] goo option" (class_name pkg t)
   | Custom _  -> raise Not_an_ml_type
 
 let rec has_events c =
@@ -40,11 +41,12 @@ let rec has_events c =
 let ml_function pkg ?(has_events=false) args ret =
   let mltype_opt = function
     | None -> "unit"
-    | Some (Cobject t) ->
+    | Some (Cobject (t, opt)) ->
+      let opt = if opt then " option" else "" in
       if has_events then
-        sprint "[ %s | %s_events handler ] goo" (class_name pkg t) (class_name pkg t)
+        sprint "[ %s | %s_events handler ] goo%s" (class_name pkg t) (class_name pkg t) opt
       else
-        sprint "%s goo" (class_name pkg t)
+        sprint "%s goo%s" (class_name pkg t) opt
     | Some x -> mltype pkg x
   in
   let rec aux acc = function
@@ -123,20 +125,20 @@ let print_ml_stubs pkg o =
       let cname' = I.class_name c in
       let cname = c_class_name c in
       print o "external %s_witness : unit -> %s witness = \"ml_witness_%s\"" cname' cname' cname;
-      let self = ("", Cobject c) in
+      let self = ("", cobject c) in
       let f = function
           | Method (name, args, ret, _, _(*false*)) ->
             print o "external %s_%s : %s = %s"
               cname' name (ml_function pkg (self :: args) ret)
               (stub_name "%s_%s" cname name (List.length args + 1))
-          | Variable (name, Cobject cclass) ->
+          | Variable (name, (Cobject _ as typ)) ->
             print o "external %s_set_%s : %s = \"ml_%s_set_%s\""
-              cname' name (ml_function pkg [self; ("", Cobject cclass)] None) cname name;
+              cname' name (ml_function pkg [self; "val", typ] None) cname name;
             print o "external %s_unset_%s : %s = \"ml_%s_unset_%s\""
               cname' name (ml_function pkg [self] None) cname name
           | Constructor (name, args, _) ->
             print o "external %s_%s : %s = %s"
-              cname' name (ml_function pkg ~has_events:(has_events c) args (Some (Cobject c)))
+              cname' name (ml_function pkg ~has_events:(has_events c) args (Some (cobject c)))
               (stub_name "%s_%s" cname name (List.length args))
           | Collection (name, p) ->
             let prefix' = sprint "%s_%s" cname' name in
@@ -274,7 +276,9 @@ let print_ml_c_stubs pkg o =
           | Float -> sprint "Double_val(arg%d)" i
           | String -> sprint "Goo_string_val(arg%d)" i
           | Enum e -> sprint "%s_val(arg%d)" (enum_name e) i
-          | Cobject cl -> sprint "$Goo_val(arg%d, %s)" i (c_class_name cl)
+          | Cobject (cl, opt) ->
+            let opt = if opt then "_option" else "" in
+            sprint "$Goo_val%s(arg%d, %s)" opt i (c_class_name cl)
           | Custom _ -> raise Not_an_ml_type
         ) func.I.fn_args
       in
@@ -316,7 +320,7 @@ let print_ml_c_stubs pkg o =
       let cname = c_class_name c in
       let f = function
           | Method (name, args, ret, _, static) ->
-            let args = ("", Cobject c) :: args in
+            let args = ("", cobject c) :: args in
             let args = List.mapi (fun i (_name, typ) ->
                 match typ with
                 | Bool -> sprint "Bool_val(arg%d)" i
@@ -324,7 +328,9 @@ let print_ml_c_stubs pkg o =
                 | Float -> sprint "Double_val(arg%d)" i
                 | String -> sprint "Goo_string_val(arg%d)" i
                 | Enum e -> sprint "%s_val(arg%d)" (enum_name e) i
-                | Cobject cl -> sprint "$Goo_val(arg%d, %s)" i (c_class_name cl)
+                | Cobject (cl, opt) ->
+                  let opt = if opt then "_option" else "" in
+                  sprint "$Goo_val%s(arg%d, %s)" opt i (c_class_name cl)
                 | Custom _ -> raise Not_an_ml_type
               ) args
             in
@@ -366,7 +372,7 @@ let print_ml_c_stubs pkg o =
             end;
             o "}";
             if (argc > 5) then bytecode_proxy o (c_method_name c name) argc
-          | Variable (name, Cobject cclass) ->
+          (*| Variable (name, Cobject (cclass, opt)) ->
             o "";
             print o "value ml_%s_set_%s(value self, value arg)" cname name;
             o "{";
@@ -386,7 +392,7 @@ let print_ml_c_stubs pkg o =
             print o "  $send(obj,set_%s)(obj, NULL);" name;
             o "  GOO_LEAVE_REGION;";
             print o "  CAMLreturn(Val_unit);";
-            o "}";
+            o "}";*)
           | Constructor (name, args, _) ->
             o "";
             let args = List.mapi (fun i (_name, typ) ->
@@ -396,7 +402,9 @@ let print_ml_c_stubs pkg o =
                 | Float -> sprint "Double_val(arg%d)" i
                 | String -> sprint "Goo_string_val(arg%d)" i
                 | Enum e -> sprint "%s_val(arg%d)" (enum_name e) i
-                | Cobject cl -> sprint "$Goo_val(arg%d, %s)" i (c_class_name cl)
+                | Cobject (cl, opt) ->
+                  let opt = if opt then "_option" else "" in
+                  sprint "$Goo_val%s(arg%d, %s)" opt i (c_class_name cl)
                 | Custom _ -> raise Not_an_ml_type
               ) args
             in
@@ -412,7 +420,7 @@ let print_ml_c_stubs pkg o =
             o "}";
           | Event (name, args) ->
             o "";
-            let cargs = ("self", Cobject c) :: args in
+            let cargs = ("self", cobject c) :: args in
             let cargs = List.map (fun (n,t) -> Goo_c.ctype n t) cargs in
             print o "goo_bool %s_on_%s(%s)" cname name (String.concat ", " cargs);
             o "{";

@@ -17,7 +17,7 @@ and ctype =
   | Int
   | Float
   | String
-  | Cobject of cclass
+  | Cobject of cclass * bool
   | Custom  of string
   | Enum    of enum
 
@@ -87,7 +87,9 @@ let int       = Int
 let bool      = Bool
 let float     = Float
 let string    = String
-let cobject t = Cobject t
+let cobject ?optional t = match optional with
+  | None -> Cobject (t, false)
+  | Some () -> Cobject (t, true)
 let custom s  = Custom s
 
 let arg name ctype = (name, ctype)

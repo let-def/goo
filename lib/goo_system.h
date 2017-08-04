@@ -21,6 +21,8 @@ goo_string null_string;
 goo_string goo_string_from_c(const char *string);
 goo_string goo_string_from_mem(const char *string, size_t len);
 
+#define goo_option
+
 /* Basic definitions of object system.
  *
  * A witness is a runtime identifier of a given class.
@@ -541,7 +543,7 @@ struct goo_collection {
     goo_assert (self);                                                    \
                                                                           \
     goo_assert ($field(self, source_field) == object);                    \
-    $field(self, source_field) = NULL;                                    \
+    *(void**)&$field(self, source_field) = NULL;                          \
     $field(object, target_field).prev = NULL;                             \
     $field(object, target_field).next = NULL;                             \
     $field(object, target_field).parent = NULL;                           \
@@ -579,7 +581,7 @@ struct goo_collection {
     $field(that, target_field).parent = (goo_object*)self;                \
     $field(that, target_field).disconnect =                               \
       (void*)_self_disconnect_##source_field;                             \
-    $field(self, source_field) = that;                                    \
+    *(target**)&$field(self, source_field) = that;                        \
   }
 
 #define GOO_INTERNAL_TABLE_COLLECTION(source_field) \

@@ -21,6 +21,14 @@ goo_object *Goo_val(value handle)
   return *(goo_object**)(Data_custom_val(Field(handle,0)));
 }
 
+goo_object *Goo_val_option(value handle)
+{
+  if (handle == Val_unit)
+    return NULL;
+  else
+    return Goo_val(Field(handle,0));
+}
+
 value ml_goo_set_handle(value handle, value index)
 {
   goo_assert ((index & 1) != 0);

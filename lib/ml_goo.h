@@ -19,6 +19,9 @@ value *goo_region_alloc(void);
 goo_object *Goo_val(value v);
 #define $Goo_val(goo, typ) $cast(Goo_val(goo), typ)
 
+goo_object *Goo_val_option(value v);
+#define $Goo_val_option(goo, typ) $cast(Goo_val_option(goo), typ)
+
 value Val_goo(goo_object *goo);
 #define $Val_goo(goo) Val_goo($as(goo, goo_object))
 

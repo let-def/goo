@@ -23,7 +23,7 @@ reinstall:
 
 SOURCES=goo_ref.mli goo_ref.ml goo.mli goo.ml
 
-libgoo.a: 
+libgoo.a: goo_system.c ml_goo.c
 	$(OCAMLC) -c goo_system.c ml_goo.c
 	ar cr libgoo.a goo_system.o ml_goo.o 
 
