@@ -37,14 +37,6 @@ value ml_goo_set_handle(value handle, value index)
   return Val_unit;
 }
 
-value ml_goo_get_handle(value handle)
-{
-  goo_object *obj = Goo_val(handle);
-  value index = (value)$field(obj, handle_);
-  goo_assert ((index & 1) != 0);
-  return index;
-}
-
 static void goo_finalize(value handle)
 {
   goo_object *obj = *(goo_object **)(Data_custom_val(handle));

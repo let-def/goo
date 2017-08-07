@@ -1,9 +1,8 @@
 open Goo_model
 module I = Introspect
 
-let class_name cl = I.(mangle (class_package cl) (class_name cl))
-let enum_name en = I.(mangle (enum_package en) (enum_name en))
-let method_name cl name = class_name cl ^ "_" ^ name
+let class_name cl = I.(name_of (class_package cl) ^ "_" ^ name_of cl)
+let enum_name en = I.(name_of (enum_package en) ^ "_" ^ name_of en)
 
 let sprint = Printf.sprintf
 let print o fmt = Printf.ksprintf o fmt
@@ -14,68 +13,98 @@ let ctype ident = function
   | Int       -> sprint "int %s" ident
   | Float     -> sprint "double %s" ident
   | String    -> sprint "goo_string %s" ident
-  | Enum e    -> sprint "%s %s" (enum_name e) ident
-  | Cobject (t, false) -> sprint "%s *%s" (class_name t) ident
-  | Cobject (t, true)  -> sprint "goo_option %s *%s" (class_name t) ident
+  | Flag en   -> sprint "%s %s" (enum_name en) ident
+  | Object cl -> sprint "%s *%s" (class_name cl) ident
+  | Object_option cl -> sprint "goo_option %s *%s" (class_name cl) ident
   | Custom s  -> sprint "%s %s" s ident
 
-let ctype_opt = function
-  | None -> "void "
-  | Some x -> ctype "" x
-
-let rec iter_all_fields c f =
-  begin match I.class_extend c with
+let iter_ancestors ?(and_self=false) cl f =
+  let rec aux = function
     | None -> ()
-    | Some c' -> iter_all_fields c' f
-  end;
-  List.iter (f c) (I.class_fields c)
+    | Some cl -> aux (I.class_extend cl); f cl
+  in
+  aux (I.class_extend cl);
+  if and_self then f cl
 
-let number_of_properties c =
+let number_of_properties cl0 =
   let count = ref 0 in
-  iter_all_fields c (fun _ -> function
-      | Variable (_, Cobject _) | Collection _ | Slot _ -> incr count
-      | Port _ -> count := !count + 2
-      | _ -> ()
+  iter_ancestors ~and_self:true cl0 (fun cl ->
+      List.iter (function
+          | (_, (Object _ | Object_option _)) -> incr count
+          | _ -> ())
+        (I.class_variables cl);
+      List.iter (function
+          | I.Rel_collection _ | I.Rel_slot _ -> incr count
+          | I.Rel_port _ -> count := !count + 2)
+        (I.class_relations cl);
     );
   !count
 
-let property_index c name =
-  let module M = struct exception Found of int end in
+let property_index cl0 name =
   let count = ref 0 in
-  match iter_all_fields c (fun _ -> function
-      | Variable (name', Cobject _) | Port (name', _)
-      | Collection (name', _) | Slot (name', _)
-        when name = name' -> raise (M.Found !count)
-      | Variable (_, Cobject _) | Collection _ | Slot _ -> incr count
-      | Port _ -> count := !count + 2
-      | _ -> ()
+  match iter_ancestors ~and_self:true cl0 (fun cl ->
+      List.iter (function
+          | (name', (Object _ | Object_option _)) ->
+            if name = name' then raise Exit;
+            incr count
+          | _ -> ())
+        (I.class_variables cl);
+      List.iter (function
+          | I.Rel_collection x when I.name_of x = name -> raise Exit
+          | I.Rel_slot x when I.name_of x = name -> raise Exit
+          | I.Rel_port x when I.name_of x = name -> raise Exit
+          | I.Rel_collection _ | I.Rel_slot _ -> incr count
+          | I.Rel_port _ -> count := !count + 2)
+        (I.class_relations cl);
     )
   with
   | () -> raise Not_found
-  | exception (M.Found id) -> id
+  | exception Exit -> !count
 
-let param_list = function
-  | [] -> "void"
-  | params ->
-    String.concat ", " (List.map (fun (name, ty) -> ctype name ty) params)
-
-let add_self c params = ("self", cobject c) :: params
-
-let param_self_list c params = param_list (add_self c params)
-
-let arg_list xs = String.concat ", " (List.map fst xs)
-
-let print_proxy o name args  =
-  let arg = function
-    | (k, Cobject (cclass, _)) -> sprint "$as(%s, %s)" k (class_name cclass)
-    | (k, _) -> k
+let func_symbol func =
+  let prefix =
+    match I.func_kind func with
+    | I.Fn_dynamic_method cl | I.Fn_static_method cl
+    | I.Fn_override (cl, _)  -> class_name cl
+    | I.Fn_package_func pkg -> I.name_of pkg
   in
-  let actual = String.concat "," (List.map arg args) in
-  print o "#define $%s(%s) %s(%s)" name (arg_list args) name actual
+  prefix ^ "_" ^ I.name_of func
 
-let print_function o ret name args proxy body =
+let func_params ?at_class func = match I.func_args ?at_class func, I.func_ret func with
+  | [], ([] | [_]) -> []
+  | params, ((_ :: ret) | ([] as ret)) ->
+    params @ List.mapi (fun i ty -> ("*ret" ^ string_of_int i), ty) ret
+
+let func_params_str ?at_class func = match func_params ?at_class func with
+  | [] -> "void"
+  | params -> String.concat ", " (List.map (fun (n,ty) -> ctype n ty) params)
+
+let func_ret func = match I.func_ret func with
+  | [typ] -> Some typ
+  | [] | (_ :: _ :: _) -> None
+
+let func_ret_str func = match func_ret func with
+  | Some typ -> ctype "" typ
+  | None -> "void"
+
+let print_proxy o name params =
+  let remove_star k =
+    if k.[0] = '*' then String.sub k 1 (String.length k - 1) else k
+  in
+  let prepare_formal (k, _) = remove_star k in
+  let prepare_actual = function
+    | (k, Object cl) when k.[0] <> '*' ->
+      sprint "$as(%s, %s)" k (class_name cl)
+    | (k, _) -> remove_star k
+  in
+  let formal = String.concat "," (List.map prepare_formal params) in
+  let actual = String.concat "," (List.map prepare_actual params) in
+  print o "#define $%s(%s) %s(%s)" name formal name actual
+
+let print_function o ?at_class func proxy body =
   print o "%s%s(%s)%s"
-    (ctype_opt ret) name (param_list args) (if body = None then ";" else "");
+    (func_ret_str func) (func_symbol func) (func_params_str ?at_class func)
+    (if body = None then ";" else "");
   begin match body with
     | None -> ()
     | Some xs ->
@@ -83,55 +112,8 @@ let print_function o ret name args proxy body =
       List.iter o xs;
       o "}";
   end;
-  if proxy then print_proxy o name args
-
-let print_method o ret cl name args proxy body =
-  print_function o ret (method_name cl name) (add_self cl args) proxy body
-
-let methods_defined = function
-  | Method (name, _, _, _, _) -> [name]
-  | Variable (name, Cobject _) -> ["set_" ^ name]
-  | Collection (name, _) -> [on_ name "disconnect"]
-  | Slot (name, _) -> [on_ name "disconnect"]
-  | Port (name, _) -> [on_ name "disconnect"]
-  | _ -> []
-
-let lookup_method name cl_main =
-  let pred field = List.mem name (methods_defined field) in
-  let rec aux cl =
-    match List.find pred (I.class_fields cl) with
-    | Method (_, args, ret, _, _) -> (ret, args)
-    | Variable (_, (Cobject _ as typ)) -> (None, ["val", typ])
-    | Collection (_, port) -> (None, ["object", cobject (I.port_target port)])
-    | Slot (name', port) -> (None, ["object", cobject (I.port_target port)])
-    | Port (_, _) -> (None, [])
-    | _ -> assert false
-    | exception Not_found ->
-      match I.class_extend cl with
-      | Some cl' -> aux cl'
-      | None ->
-        Printf.ksprintf failwith
-          "class %s has no method %s to override" (class_name cl_main) name
-  in
-  aux cl_main
-
-let lookup_override name =
-  let pred = function Override (name', _) -> name = name' | _ -> false in
-  let rec aux cl =
-    match List.find pred (I.class_fields cl) with
-    | Override _ -> cl
-    | _ -> assert false
-    | exception Not_found ->
-      match I.class_extend cl with
-      | Some cl' -> aux cl'
-      | None -> raise Not_found
-  in
-  aux
-
-let lookup_parent_override name cl =
-  match I.class_extend cl with
-  | None -> raise Not_found
-  | Some cl -> lookup_override name cl
+  if proxy then
+    print_proxy o (func_symbol func) (func_params ?at_class func)
 
 let print_class_hierarchy o cl_main =
   let cname = class_name cl_main in
@@ -153,24 +135,16 @@ let print_class_methods o cl_main =
   print o "GOO_CLASS_METHODS(%s)" cname;
   o "{";
   print o "  GOO_CLASS_METHODS_INIT(%s);" cname;
-  let print_method name args ret =
-    print o "  %s(* const %s) (%s);"
-      (ctype_opt ret) name (param_self_list cl_main args)
-  in
-  iter_all_fields cl_main (fun _ -> function
-      | Method (name, args, ret, _, false) ->
-        print_method name args ret;
-      | Variable (name, (Cobject _ as typ)) ->
-        print_method ("set_"^name) ["val", typ] None;
-      | Collection (name, p) ->
-        print o "  GOO_COLLECTION_METHODS(%s, %s, %s);"
-          cname name (class_name (I.port_target p))
-      | Slot (name, p) ->
-        print o "  GOO_SLOT_METHODS(%s, %s, %s);"
-          cname name (class_name (I.port_target p))
-      | Port (name, _) ->
-        print o "  GOO_PORT_METHODS(%s, %s);" cname name
-      | _ -> ()
+  iter_ancestors ~and_self:true cl_main
+    (fun cl ->
+       List.iter (fun func ->
+           match I.func_kind func with
+           | I.Fn_dynamic_method cl ->
+             print o "  %s(* const %s) (%s);"
+               (func_ret_str func) (I.name_of func)
+               (func_params_str ~at_class:cl_main func)
+           | _ -> ()
+         ) (I.class_funcs cl)
     );
   o "};";
   o ""
@@ -180,25 +154,36 @@ let print_class_fields o cl_main =
   print o "GOO_CLASS_FIELDS(%s)" cname;
   o "{";
   print o "  GOO_CLASS_FIELDS_INIT(%s);" cname;
-  iter_all_fields cl_main (fun cl -> function
-      | Variable (name, typ) ->
-        let name = match typ with
-          | Cobject _ -> "const " ^ name
-          | _ -> name
-        in
-        print o " %s;" (ctype name typ)
-      | Collection (name, _) ->
-        print o "  goo_collection %s;" name
-      | Slot (name, p) ->
-        print o "  %s;" (ctype ("const " ^ name) (Cobject (I.port_target p, true)))
-      | Port (name, _) ->
-        print o "  goo_port %s;" name
-      | _ -> ()
+  iter_ancestors ~and_self:true cl_main
+    (fun cl ->
+       List.iter (fun (name, typ) ->
+           let name = match typ with
+             | Object _ | Object_option _ -> "const " ^ name
+             | _ -> name
+           in
+           print o " %s;" (ctype name typ)
+         ) (I.class_variables cl);
+       List.iter (function
+           | I.Rel_collection col ->
+             print o "  goo_collection %s;" (I.name_of col)
+           | I.Rel_port pt ->
+             print o "  %s;" (ctype ("const " ^ I.name_of pt)
+                                (Object_option (I.port_target pt)))
+           | I.Rel_slot sl ->
+             print o "  goo_port %s;" (I.name_of sl)
+         ) (I.class_relations cl);
     );
   o "};";
   o ""
 
 let print_class_method_prototypes o cl =
+  List.iter (fun func ->
+
+    ) (I.class_funcs cl);
+  List.iter (fun func ->
+
+    ) (I.class_override cl);
+
   List.iter (function
       | Method (name, args, ret, _, _) ->
         print_method o ret cl name args true None;

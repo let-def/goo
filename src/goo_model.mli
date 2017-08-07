@@ -1,17 +1,30 @@
-(* A identifier name, must be a valid OCaml and C identifier *)
+(* An identifier name, must be a valid OCaml and C identifier *)
 type name = string
-(* A list of C statements *)
-type body = string list
+
+type _ id
+type classe_desc
+type collection_desc
+type enum_desc
+type enum_member_desc
+type event_desc
+type func_desc
+type package_desc
+type port_desc
+type slot_desc
 
 (* Packages are the root of declarations.
    A package contains a list of classes, enums and functions. *)
-type package
+type package = package_desc id
 val package : name -> package
 
-type enum and cclass and port
+type classe = classe_desc id
+val classe : package -> ?extend:classe -> name -> classe
 
-(* Add custom code that will be inserted in the package *.h header. *)
-val declare : package -> body -> unit
+(* A C-like enumeration: a bunch of names that can be distinguished *)
+type enum = enum_desc id
+type enum_member = enum_member_desc id
+val enum : package -> name -> enum
+val enum_member : enum -> name -> enum_member
 
 (* Goo has a simple type system.
    Basic types represent simple values, the ones that don't appear in the heap
@@ -22,21 +35,16 @@ type ctype =
   | Int
   | Float
   | String
-  | Cobject of cclass * bool
+  | Object of classe
+  | Object_option of classe
   | Custom of string
-  | Enum of enum
+  | Flag of enum
+
 val int: ctype
 val bool: ctype
 val float: ctype
 val string: ctype
-
-(* Custom types maps to about arbitrary C types.
-   The string will be output in the C generated code, but methods or functions
-   with custom types won't be reflected OCaml. *)
-val custom : string -> ctype
-
-(* A C-like enumeration: a bunch of names that can be distinguished *)
-val enum : package -> name -> string list -> ctype
+val flag: enum -> ctype
 
 (* Arguments of functions or methods are made from a name and type. *)
 type arg = name * ctype
@@ -46,88 +54,78 @@ val arg: name -> ctype -> arg
    If no return type is provided, it will return "void".
    If body is specified, it will be used in C code. Otherwise, a stub is
    generated and will need to be implemented. *)
-val func: package -> name -> ?ret:ctype -> ?body:body -> arg list -> unit
+type func = func_desc id
+type event
+val top_func: package -> ctype list -> name -> arg list -> func
+val func : classe -> ?self:bool -> ctype list -> name -> arg list -> func
+val meth : classe -> ?self:bool -> ctype list -> name -> arg list -> func
+val event : classe -> ctype list -> name -> arg list -> event
 
-(* Classes are the main components of packages.
-   They pack data and code and form the nodes of the heap graph.
-   A class contains fields.
-*)
-type field =
-  | Method      of name * arg list * ctype option * (cclass -> body) option * bool
-  | Event       of name * arg list
-  | Override    of name * (cclass -> body) option
-  | Variable    of name * ctype
-  | Constructor of name * arg list * (cclass -> body) option
-  | Port        of name * port
-  | Collection  of name * port
-  | Slot        of name * port
+val override : classe -> func -> func
+val variable : classe -> name -> ctype -> unit
 
-type fields = field list
+type port = port_desc id
+type collection = collection_desc id
+type slot = slot_desc id
+val port       : classe -> name -> classe -> port
+val collection : classe -> name -> port -> collection
+val slot       : classe -> name -> port -> slot
 
-val cclass : package -> ?extend:cclass -> name -> fields list -> cclass
-val cobject: ?optional:unit -> cclass -> ctype
-val group: fields list -> fields
-val fields: cclass -> fields list -> unit
-
-(* A constructor is a function that can allocate and return an instance of the
-   class. *)
-val constructor: name -> ?body:(cclass -> body) -> arg list -> fields
-
-(* A variable will add a field to the "struct" that defines the data of the
-   class.
-   If the type is a `cobject`, the field will be generated "const" and a
-   "set_name" method will be generated.
-   This is done to keep track of the shape of the graph.
-*)
-val variable: name -> ctype -> fields
-
-(* Methods are special functions:
-   - their first argument is an instance of an object,
-   - when inherited methods can be overriden,
-   - dynamic methods support dynamic dispatch (calling the most precise
-     implementation of the actual class, not the one known by the type of the
-     variable).
-*)
-val meth: name -> ?static:bool -> ?ret:ctype -> ?body:(cclass -> body) -> arg list -> fields
-
-(* Redefine a method. Arguments are taken the original definition. *)
-val override: ?body:(cclass -> body) -> name -> fields
-
-(* An event is a callback that can be implemented in OCaml side. *)
-val event: name -> arg list -> fields
-
-val port: cclass -> name -> cclass -> port
-val collection : name -> port -> fields
-val slot: name -> port -> fields
-
+(* Runtime support package and root of object hierarchy *)
+val goo : package
+val goo_object : classe
+val goo_destroy : func
 
 module Introspect : sig
-  type func = {
-    fn_name : string;
-    fn_args : arg list;
-    fn_ret  : ctype option;
-    fn_body : body option;
-  }
-  val mangle : package -> name -> name
-  val package_name : package -> name
-  val package_classes : package -> cclass list
-  val package_enums : package -> enum list
-  val package_funcs : package -> func list
-  val package_declarations : package -> body
-  (*val package_*)
-  val class_package : cclass -> package
-  val class_fields : cclass -> fields
-  val class_extend : cclass -> cclass option
-  val class_name : cclass -> name
-  val class_depth : cclass -> int
-  val enum_package : enum -> package
-  val enum_name : enum -> name
-  val enum_members : enum -> string list
-  val port_source : port -> cclass
-  val port_name : port -> name
-  val port_target : port -> cclass
-end
+  module Table : sig
+    type ('a, 'b) table
+    val create : unit -> ('a id, 'b) table
+    val add  : ('a, 'b) table -> 'a -> 'b -> unit
+    val rem  : ('a, 'b) table -> 'a -> unit
+    val mem  : ('a, 'b) table -> 'a -> bool
+    val find : ('a, 'b) table -> 'a -> 'b
+  end
 
-(* Runtime support package *)
-val goo : package
-val goo_object : cclass
+  val name_of : _ id -> name
+
+  val package_classes : package -> classe list
+  val package_enums   : package -> enum list
+  val package_funcs   : package -> func list
+
+  val class_package   : classe -> package
+  val class_extend    : classe -> classe option
+  val class_depth     : classe -> int
+  val class_funcs     : classe -> func list
+  val class_variables : classe -> (name * ctype) list
+  val class_override  : classe -> func list
+  val class_events    : classe -> event list
+
+  type class_relation =
+    | Rel_port of port
+    | Rel_slot of slot
+    | Rel_collection of collection
+
+  val class_relations : classe -> class_relation list
+
+  val enum_package : enum -> package
+  val enum_members : enum -> enum_member list
+
+  type func_kind =
+    | Fn_dynamic_method of classe
+    | Fn_static_method of classe
+    | Fn_package_func of package
+    | Fn_override of classe * func
+
+  val func_kind : func -> func_kind
+  val func_ret : func -> ctype list
+  val func_args : ?at_class:classe -> func -> arg list
+
+  val port_source : port -> classe
+  val port_target : port -> classe
+
+  val slot_classe : slot -> classe
+  val slot_port   : slot -> port
+
+  val collection_classe : collection -> classe
+  val collection_port   : collection -> port
+end

@@ -1,234 +1,414 @@
-let failwithf fmt = Printf.ksprintf failwith fmt
-
+(* An identifier name, must be a valid OCaml and C identifier *)
 type name = string
 
-type body = string list
+module Id : sig
+  type 'a t
+  val inj : name -> 'a -> 'a t
+  val prj : 'a t -> 'a
+  val name : 'a t -> name
+end = struct
+  external oo_id : unit -> int = "caml_fresh_oo_id"
+  type 'a t = { value : 'a; id : int; name : name }
+  let inj name value =
+    let result = { value; id = oo_id (); name } in
+    Obj.set_tag (Obj.repr result) Obj.object_tag;
+    result
+  let prj x = x.value
+  let name x = x.name
+end
 
-type cclass = {
-  cl_name    : name;
-  cl_package : package;
-  cl_extend  : cclass option;
-  mutable cl_sealed : bool;
-  mutable cl_fields : fields;
+let failwithf fmt = Printf.ksprintf failwith fmt
+
+module Sealed_list : sig
+  type seal
+  val seal: unit -> seal
+
+  type 'a t
+  val make : seal -> 'a t
+  val append : 'a t -> 'a -> ('fmt, unit, string, unit) format4 -> 'fmt
+  val read : 'a t -> 'a list
+  val unsafe_rev_read : 'a t -> 'a list
+end = struct
+  type seal = bool ref
+  let seal () = ref false
+  type 'a t = { mutable items: 'a list; mutable sealed: bool; seal : seal }
+  let make seal =
+    if !seal then invalid_arg "Sealed_list.make: seal is already broken";
+    { items = []; sealed = false; seal }
+
+  let append xs x fmt =
+    if !(xs.seal) then failwithf fmt
+    else (
+      xs.items <- x :: xs.items;
+      Printf.ifprintf () fmt
+    )
+
+  let read xs =
+    xs.seal := true;
+    if not xs.sealed then (
+      xs.sealed <- true;
+      xs.items <- List.rev xs.items;
+    );
+    xs.items
+
+  let unsafe_rev_read xs = xs.items
+end
+
+type 'a id = 'a Id.t
+let inj = Id.inj and prj = Id.prj and name_of = Id.name
+
+type 'a sealed_list = 'a Sealed_list.t
+let seal = Sealed_list.seal
+let sealed_list = Sealed_list.make
+let append = Sealed_list.append
+
+(* Packages are the root of declarations.
+   A package contains a list of classes, enums and functions. *)
+type package_desc = {
+  pk_enums: enum sealed_list;
+  pk_classes: classe sealed_list;
+  pk_funcs: func sealed_list;
 }
+
+and classe_desc = {
+  cl_package: package;
+  cl_extend: classe option;
+  cl_funcs: func sealed_list;
+  cl_variables: (name * ctype) sealed_list;
+  cl_override: func sealed_list;
+  cl_events : event sealed_list;
+  cl_relations : classe_relation sealed_list;
+}
+
+and classe_relation =
+  | Rel_port of port
+  | Rel_slot of slot
+  | Rel_collection of collection
+
+and func_desc = {
+  fn_ret  : ctype list;
+  fn_args : arg list;
+  fn_kind : func_kind;
+}
+
+and func_kind =
+  | Fn_dynamic_method of classe
+  | Fn_static_method of classe
+  | Fn_package_func of package
+  | Fn_override of classe * func
+
+and event_desc = {
+  ev_classe : classe;
+  ev_args : arg list;
+  ev_ret  : ctype list;
+}
+
+and enum_desc = {
+  en_package: package;
+  en_members: enum_member sealed_list;
+}
+
+and enum_member_desc = {
+  enm_enum : enum;
+}
+
+and port_desc = {
+  pt_source : classe;
+  pt_target : classe;
+}
+
+and collection_desc = {
+  col_classe : classe;
+  col_port : port;
+}
+
+and slot_desc = {
+  sl_classe : classe;
+  sl_port : port;
+}
+
+and enum = enum_desc id
+and enum_member = enum_member_desc id
+and event = event_desc id
+and func = func_desc id
+and classe = classe_desc id
+and package = package_desc id
+and port = port_desc id
+and collection = collection_desc id
+and slot = slot_desc id
+
+and arg = name * ctype
 
 and ctype =
   | Bool
   | Int
   | Float
   | String
-  | Cobject of cclass * bool
-  | Custom  of string
-  | Enum    of enum
+  | Object of classe
+  | Object_option of classe
+  | Custom of string
+  | Flag of enum
 
-and arg = string * ctype
-
-and field =
-  | Method      of name * arg list * ctype option * (cclass -> body) option * bool
-  | Event       of name * arg list
-  | Override    of name * (cclass -> body) option
-  | Variable    of name * ctype
-  | Constructor of name * arg list * (cclass -> body) option
-  | Port        of name * port
-  | Collection  of name * port
-  | Slot        of name * port
-
-and fields = field list
-
-and enum = {
-  en_name    : string;
-  en_package : package;
-  en_members : string list;
-}
-
-and func = {
-  fn_name : string;
-  fn_args : arg list;
-  fn_ret  : ctype option;
-  fn_body : body option;
-}
-
-and package = {
-  pk_name: string;
-  mutable pk_classes : cclass list;
-  mutable pk_enums   : enum list;
-  mutable pk_funcs   : func list;
-  mutable pk_declare : string list;
-  mutable pk_sealed  : bool;
-}
-
-and port = {
-  pt_target : cclass;
-  pt_name   : string;
-  pt_source : cclass;
-}
-
-let field_name = function
-  | Method      (name, _, _, _, _)
-  | Event       (name, _)
-  | Override    (name, _)
-  | Variable    (name, _)
-  | Constructor (name, _, _)
-  | Port        (name, _)
-  | Collection  (name, _)
-  | Slot        (name, _) -> name
-
-let field_kind = function
-  | Method      _ -> "method"
-  | Event       _ -> "event"
-  | Override    _ -> "override"
-  | Variable    _ -> "variable"
-  | Constructor _ -> "constructor"
-  | Port        _ -> "port"
-  | Collection  _ -> "collection"
-  | Slot        _ -> "slot"
-
-let int       = Int
-let bool      = Bool
-let float     = Float
-let string    = String
-let cobject ?optional t = match optional with
-  | None -> Cobject (t, false)
-  | Some () -> Cobject (t, true)
-let custom s  = Custom s
-
-let arg name ctype = (name, ctype)
-
-let group xs =
-  List.fold_left (fun acc fields -> List.rev_append fields acc) [] xs
-
-let meth name ?(static=false) ?ret ?body args =
-  [Method (name, args, ret, body, static)]
-
-let event name args =
-  [Event (name, args)]
-
-let override ?body name =
-  [Override (name, body)]
-
-let variable name ctype =
-  [Variable (name, ctype)]
-
-let constructor name ?body args =
-  [Constructor (name, args, body)]
-
-let collection name port =
-  [Collection (name, port)]
-
-let slot name port =
-  [Slot (name, port)]
-
-let fail_sealed sealed_kind sealed_name item_kind item_name =
-  failwithf "Trying to insert %s %s in sealed %s %s"
-    item_kind item_name sealed_kind sealed_name
-
-let assert_unsealed_package pkg kind name =
-  if pkg.pk_sealed then fail_sealed "package" pkg.pk_name kind name
-
-let assert_unsealed_class cl kind name =
-  if cl.cl_sealed then fail_sealed "class" cl.cl_name kind name
-
-let package pk_name = {
-  pk_name;
-  pk_enums   = [];
-  pk_classes = [];
-  pk_funcs   = [];
-  pk_declare = [];
-  pk_sealed  = false;
-}
-
-let enum en_package en_name en_members =
-  assert_unsealed_package en_package "enum" en_name;
-  let enum = { en_name; en_package; en_members } in
-  en_package.pk_enums <- enum :: en_package.pk_enums;
-  Enum enum
-
-let func fn_package fn_name ?ret ?body fn_args =
-  assert_unsealed_package fn_package "func" fn_name;
-  let func = { fn_name; fn_ret = ret; fn_body = body; fn_args } in
-  fn_package.pk_funcs <- func :: fn_package.pk_funcs
-
-let register cls =
-  assert_unsealed_package cls.cl_package "class" cls.cl_name;
-  cls.cl_package.pk_classes <- cls :: cls.cl_package.pk_classes;
-  cls
-
-let cclass cl_package cl_extend cl_name =
-  register { cl_name; cl_extend; cl_fields = []; cl_package; cl_sealed = false }
-
-let fields cl fields = match group fields with
-  | [] -> ()
-  | (x :: _) as xs ->
-    assert_unsealed_class cl (field_kind x) (field_name x);
-    cl.cl_fields <- List.rev_append xs cl.cl_fields
-
-let seal_package pk =
-  if not pk.pk_sealed then (
-    pk.pk_sealed  <- true;
-    pk.pk_classes <- List.rev pk.pk_classes;
-    pk.pk_enums   <- List.rev pk.pk_enums;
-    pk.pk_funcs   <- List.rev pk.pk_funcs;
-    pk.pk_declare <- List.rev pk.pk_declare;
-  )
-
-let seal_class cl =
-  if not cl.cl_sealed then (
-    cl.cl_sealed <- true;
-    cl.cl_fields <- List.rev cl.cl_fields;
-  )
-
-let port pt_target pt_name pt_source =
-  let pt = { pt_target; pt_name; pt_source } in
-  fields pt_target [[Port (pt_name, pt)]];
-  pt
-
-let declare pkg body =
-  let declaration = match body with
-    | [] -> "\"\""
-    | x :: _ -> "\"" ^ String.escaped x ^ "\""
-  in
-  assert_unsealed_package pkg "declaration" declaration;
-  pkg.pk_declare <- List.rev_append body pkg.pk_declare
-
-module Introspect = struct
-  type nonrec func = func = {
-    fn_name : string;
-    fn_args : arg list;
-    fn_ret  : ctype option;
-    fn_body : body option;
+let package name =
+  let seal = Sealed_list.seal () in
+  inj name {
+    pk_enums = sealed_list seal;
+    pk_classes = sealed_list seal;
+    pk_funcs = sealed_list seal;
   }
-  let package_name pk = pk.pk_name
-  let package_classes pk = seal_package pk; pk.pk_classes
-  let package_enums pk = seal_package pk; pk.pk_enums
-  let package_funcs pk = seal_package pk; pk.pk_funcs
-  let package_declarations pk = seal_package pk; pk.pk_declare
-  let mangle pk name = pk.pk_name ^ "_" ^ name
-  let class_package cl = cl.cl_package
-  let class_fields cl = seal_class cl; cl.cl_fields
-  let class_extend cl = cl.cl_extend
-  let rec class_depth = function
-    | { cl_extend = None } -> 0
-    | { cl_extend = Some c } -> 1 + class_depth c
-  let class_name cl = cl.cl_name
-  let enum_package en = en.en_package
-  let enum_name en = en.en_name
-  let enum_members en = en.en_members
-  let port_source pt = pt.pt_source
-  let port_name pt = pt.pt_name
-  let port_target pt = pt.pt_target
-end
 
+let classe cl_package cl_extend name =
+  let seal = seal () in
+  let result = inj name {
+      cl_package;
+      cl_extend;
+      cl_funcs = sealed_list seal;
+      cl_variables = sealed_list seal;
+      cl_override = sealed_list seal;
+      cl_relations = sealed_list seal;
+      cl_events = sealed_list seal;
+    } in
+  append (prj cl_package).pk_classes result
+    "adding class %s to package %s which is already sealed"
+    name (name_of cl_package);
+  result
+
+let enum en_package name =
+  let seal = seal () in
+  let result = inj name { en_package; en_members = sealed_list seal; } in
+  append (prj en_package).pk_enums result
+    "adding enum %s to package %s which is already sealed"
+    name (name_of en_package);
+  result
+
+let enum_member enm_enum name =
+  let result = inj name { enm_enum } in
+  append (prj enm_enum).en_members result
+    "adding member %s to enumeration %s which is already sealed"
+    name (name_of enm_enum);
+  result
+
+let event ev_classe ev_ret name ev_args =
+  let ev = inj name { ev_classe; ev_ret; ev_args; } in
+  append (prj ev_classe).cl_events ev
+    "adding event %s to class %s which is already sealed"
+    name (name_of ev_classe);
+  ev
+
+let int    = Int
+let bool   = Bool
+let float  = Float
+let string = String
+let flag enum = Flag enum
+let arg name typ = (name, typ)
+let objet cl = Object cl
+let objet_opt cl = Object_option cl
+
+let raw_func fn_kind fn_ret name fn_args =
+  inj name { fn_args; fn_ret; fn_kind }
+
+let top_func pkg ret name args =
+  let func = raw_func (Fn_package_func pkg) ret name args in
+  append (prj pkg).pk_funcs func
+    "adding function %s to package %s which is already sealed"
+    name (name_of pkg);
+  func
+
+let add_self self cl args =
+  if self then (arg "self" (objet cl) :: args) else args
+
+let func cl ?(self=true) ret name args =
+  let args = add_self self cl args in
+  let func = raw_func (Fn_static_method cl) ret name args in
+  append (prj cl).cl_funcs func
+    "adding function %s to class %s which is already sealed"
+    name (name_of cl);
+  func
+
+
+let meth cl ?(self=true) ret name args =
+  let args = add_self self cl args in
+  let func = raw_func (Fn_dynamic_method cl) ret name args in
+  append (prj cl).cl_funcs func
+    "adding method %s to class %s which is already sealed"
+    name (name_of cl);
+  func
+
+let compare_classe cl1 cl2 =
+  let rec is_ancestor ancestor cl =
+    match (prj cl).cl_extend with
+    | None -> false
+    | Some cl' -> (cl' = ancestor || is_ancestor ancestor cl')
+  in
+  if cl1 = cl2 then `Eq else
+  if is_ancestor cl1 cl2 then `Lt
+  else if is_ancestor cl2 cl1 then `Gt
+  else `Neq
+
+let func_args_at_class func classe =
+  let func_desc = prj func in
+  match func_desc.fn_kind with
+  | Fn_package_func _ -> func_desc.fn_args
+  | _ ->
+    let fn_args = match func_desc.fn_args with
+      | ("self", Object cl) :: rest when compare_classe cl classe = `Lt  ->
+        ("self", Object classe) :: rest
+      | args -> args
+    in
+    fn_args
+
+let override classe func =
+  let func =
+    let super = match (prj func).fn_kind with
+      | Fn_package_func pkg ->
+        failwithf "in class %s, try to override function %s.%s which is a package function"
+          (name_of classe) (name_of pkg) (name_of func)
+      | Fn_override (classe', _) | Fn_dynamic_method classe' | Fn_static_method classe' ->
+        classe'
+    in
+    if super = classe then
+      failwithf "in class %s, overriding method %s which is already defined in this class"
+        (name_of classe) (name_of func)
+    else
+      let rec check_super = function
+        | None ->
+          failwithf "in class %s, overriding method %s.%s but %s is not an ancestor of %s"
+            (name_of classe) (name_of super) (name_of func)
+            (name_of super) (name_of classe)
+        | Some cl ->
+          if cl = super then () else
+            check_super (prj cl).cl_extend
+      in
+      check_super (prj classe).cl_extend;
+      let is_override func' = (name_of func') = (name_of func) in
+      let rec find_func cl =
+        match List.find is_override
+                (Sealed_list.unsafe_rev_read (prj cl).cl_override)
+        with
+        | func -> func
+        | exception Not_found ->
+          match (prj cl).cl_extend with
+          | None -> assert false
+          | Some cl' -> find_func cl'
+      in
+      find_func super
+  in
+  let func_desc = { (prj func) with
+                    fn_args = func_args_at_class func classe;
+                    fn_kind = Fn_override (classe, func);
+                  } in
+  let func' = inj (name_of func) func_desc in
+  append (prj classe).cl_override func'
+    "overriding method %s in class %s which is already sealed"
+    (name_of func) (name_of classe);
+  func'
+
+let variable classe name typ =
+  append (prj classe).cl_variables (name, typ)
+    "adding variable %s to class %s which is already sealed"
+    name (name_of classe)
+
+let port pt_target name pt_source =
+  let port = inj name { pt_target; pt_source } in
+  append (prj pt_target).cl_relations (Rel_port port)
+    "adding port %s to class %s which is already sealed"
+    name (name_of pt_target);
+  port
+
+let slot sl_classe name sl_port =
+  let slot = inj name { sl_classe; sl_port } in
+  append (prj sl_classe).cl_relations (Rel_slot slot)
+    "adding slot %s to class %s which is already sealed"
+    name (name_of sl_classe);
+  slot
+
+let collection col_classe name col_port =
+  let collection = inj name { col_classe; col_port } in
+  append (prj col_classe).cl_relations (Rel_collection collection)
+    "adding collection %s to class %s which is already sealed"
+    name (name_of col_classe);
+  collection
+
+let seal_package pkg =
+  ignore (Sealed_list.read (prj pkg).pk_classes)
+
+let seal_classe cl =
+  ignore (Sealed_list.read (prj cl).cl_funcs)
+
+(* Runtime support package and root of object hierarchy *)
 let goo = package "goo"
 
-let goo_object = cclass goo None "object"
+let goo_object = classe goo None "object"
+let goo_destroy = meth goo_object [] "destroy" []
 
-let () = fields goo_object [
-    meth "destroy" [];
-  ]
+let () = (
+  seal_package goo;
+  seal_classe goo_object
+)
 
-let () = seal_package goo
+let classe package ?(extend=goo_object) name =
+  classe package (Some extend) name
 
-let cclass package ?(extend=goo_object) name xs =
-  let cl = cclass package (Some extend) name in
-  fields cl xs;
-  cl
+module Introspect = struct
+  module Table = struct
+    type ('a, 'b) table = ('a, 'b) Hashtbl.t
+    let create () = Hashtbl.create 7
+    let add  tbl k v = Hashtbl.add tbl k v
+    let rem  tbl k   = Hashtbl.remove tbl k
+    let mem  tbl k   = Hashtbl.mem tbl k
+    let find tbl k   = Hashtbl.find tbl k
+  end
+
+  let name_of = name_of
+
+  let read = Sealed_list.read
+
+  let package_classes pkg = read (prj pkg).pk_classes
+  let package_enums pkg = read (prj pkg).pk_enums
+  let package_funcs pkg = read (prj pkg).pk_funcs
+
+  let class_package cl = (prj cl).cl_package
+  let class_extend cl = (prj cl).cl_extend
+  let class_depth cl =
+    let rec aux n cl = match class_extend cl with
+      | None -> n
+      | Some cl' -> aux (n + 1) cl'
+    in
+    aux 0 cl
+  let class_funcs cl = read (prj cl).cl_funcs
+  let class_variables cl = read (prj cl).cl_variables
+  let class_override cl = read (prj cl).cl_override
+  let class_events cl = read (prj cl).cl_events
+
+  type class_relation = classe_relation =
+    | Rel_port of port
+    | Rel_slot of slot
+    | Rel_collection of collection
+
+  let class_relations cl = read (prj cl).cl_relations
+
+  let enum_package en = (prj en).en_package
+  let enum_members en = read (prj en).en_members
+
+  type nonrec func_kind = func_kind =
+    | Fn_dynamic_method of classe
+    | Fn_static_method of classe
+    | Fn_package_func of package
+    | Fn_override of classe * func
+
+  let func_kind fn = (prj fn).fn_kind
+  let func_ret fn = (prj fn).fn_ret
+  let func_args ?at_class fn =
+    match at_class with
+    | None -> (prj fn).fn_args
+    | Some cl -> func_args_at_class fn cl
+
+  let port_source pt = (prj pt).pt_source
+  let port_target pt = (prj pt).pt_target
+
+  let slot_classe sl = (prj sl).sl_classe
+  let slot_port sl = (prj sl).sl_port
+
+  let collection_classe col = (prj col).col_classe
+  let collection_port col = (prj col).col_port
+end
