@@ -281,5 +281,5 @@ let () =
 
 let () =
   Goo_c.generate ui ~dir:"./";
-  (*Goo_ml.generate ui ~dir:"./"*)
+  Goo_ml.generate ui ~dir:"./"
 ;;

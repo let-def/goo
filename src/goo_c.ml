@@ -32,7 +32,7 @@ let ctype ident = function
   | Flag en   -> sprint "%s %s" (enum_name en) ident
   | Object cl -> sprint "%s *%s" (class_name cl) ident
   | Object_option cl -> sprint "goo_option %s *%s" (class_name cl) ident
-  | Custom s  -> sprint "%s %s" s ident
+  | Custom s  -> sprint "%s%s%s" s (if s.[String.length s - 1] <> ' ' then " " else "") ident
 
 let iter_ancestors ?(and_self=false) cl f =
   let rec aux = function
@@ -188,7 +188,7 @@ let print_class_fields o cl_main =
              | Object _ | Object_option _ -> "const " ^ name
              | _ -> name
            in
-           print o " %s;" (ctype name typ)
+           print o "  %s;" (ctype name typ)
          ) (I.class_variables cl);
        List.iter (function
            | I.Rel_collection col ->
@@ -260,14 +260,15 @@ let print_package_h pkg o =
   List.iter
     (fun func -> print_function o func true None)
     (I.package_funcs pkg);
-  o "";
   (* Declare classes *)
   List.iter (fun cl ->
+      o "";
       print_class_methods o cl;
       print_class_fields o cl;
       print_class_hierarchy o cl;
       print_class_method_prototypes o cl
     ) (I.package_classes pkg);
+  o "";
   (* Declare relations *)
   List.iter (fun cl ->
       let cname = class_name cl in
