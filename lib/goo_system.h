@@ -287,9 +287,12 @@ GOO_CLASS_HIERARCHY(goo_object)
 #define __sub_EXPAND__(x) __sub_EXPAND___(x)
 //#define __sub_EXPAND__(x) x
 #define __sub_EXPAND_(x) __sub_EXPAND__(x)
+#define _X(x) x
 #define $send(obj,name) ((obj)->self.class_->name)
 #define $field(obj,name) ((obj)->self.name)
-#define $static(obj,name) __sub_EXPAND_(static_##obj##_##name)
+//#define $static(obj,name) __sub_EXPAND_(static_##obj##_##name)
+#define $_static(name) _X($ ## name)
+#define $static(obj,name) $static_##obj##_##name
 #define $alloc() goo_self_alloc()
 #define $method static
 #define $number_of_properties(object) ($send(object, display_))->properties

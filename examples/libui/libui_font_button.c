@@ -3,10 +3,10 @@
 
 static void on_changed(uiFontButton *b, void *self)
 {
-  $static(self, on_changed)((libui_font_button*)self);
+  $static(event, changed)((libui_font_button*)self);
 }
 
-libui_font_button *libui_font_button_new(void)
+$method libui_font_button *self_new(void)
 {
   libui_font_button *self = $alloc();
   $field(self, control) = uiControl(uiNewFontButton());

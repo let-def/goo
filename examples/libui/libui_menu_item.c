@@ -3,10 +3,10 @@
 
 static void on_clicked(uiMenuItem *sender, uiWindow *window, void *self)
 {
-  $static(self, on_clicked)((libui_menu_item*)self);
+  $static(event, clicked)((libui_menu_item*)self);
 }
 
-libui_menu_item *libui_menu_item_new(uiMenuItem * item)
+$method libui_menu_item *self_new(uiMenuItem * item)
 {
   libui_menu_item *self = $alloc();
   $field(self, control) = item;
@@ -14,22 +14,22 @@ libui_menu_item *libui_menu_item_new(uiMenuItem * item)
   return self;
 }
 
-goo_bool libui_menu_item_is_checked(libui_menu_item *self)
+$method goo_bool self_is_checked(libui_menu_item *self)
 {
   return uiMenuItemChecked(WIDGET);
 }
 
-void libui_menu_item_set_checked(libui_menu_item *self, goo_bool checked)
+$method void self_set_checked(libui_menu_item *self, goo_bool checked)
 {
   uiMenuItemSetChecked(WIDGET, checked);
 }
 
-void libui_menu_item_disable(libui_menu_item *self)
+$method void self_disable(libui_menu_item *self)
 {
   uiMenuItemDisable(WIDGET);
 }
 
-void libui_menu_item_enable(libui_menu_item *self)
+$method void self_enable(libui_menu_item *self)
 {
   uiMenuItemEnable(WIDGET);
 }

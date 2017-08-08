@@ -3,7 +3,7 @@
 
 static void on_selected(uiCombobox *e, void *self)
 {
-  $static(event, on_selected)((libui_combobox*)self);
+  $static(event, selected)((libui_combobox*)self);
 }
 
 $method libui_combobox *self_new(void)
