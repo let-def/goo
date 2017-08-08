@@ -85,14 +85,17 @@ let func_symbol func =
   in
   prefix ^ "_" ^ I.name_of func
 
+let params_str params =
+  String.concat ", " (List.map (fun (n,ty) -> ctype n ty) params)
+
 let func_params ?at_class func = match I.func_args ?at_class func, I.func_ret func with
   | [], ([] | [_]) -> []
-  | params, ((_ :: ret) | ([] as ret)) ->
+  | params, ((_ :: ([] as ret)) | ret) ->
     params @ List.mapi (fun i ty -> ("*ret" ^ string_of_int i), ty) ret
 
 let func_params_str ?at_class func = match func_params ?at_class func with
   | [] -> "void"
-  | params -> String.concat ", " (List.map (fun (n,ty) -> ctype n ty) params)
+  | params -> params_str params
 
 let func_ret func = match I.func_ret func with
   | [typ] -> Some typ
@@ -100,7 +103,7 @@ let func_ret func = match I.func_ret func with
 
 let func_ret_str func = match func_ret func with
   | Some typ -> ctype "" typ
-  | None -> "void"
+  | None -> "void "
 
 let func_args_str ?at_class func =
   let prepare_arg (k, _) =
@@ -190,11 +193,12 @@ let print_class_fields o cl_main =
        List.iter (function
            | I.Rel_collection col ->
              print o "  goo_collection %s;" (I.name_of col)
-           | I.Rel_port pt ->
-             print o "  %s;" (ctype ("const " ^ I.name_of pt)
-                                (Object_option (I.port_target pt)))
            | I.Rel_slot sl ->
-             print o "  goo_port %s;" (I.name_of sl)
+             let pt = I.slot_port sl in
+             print o "  %s;" (ctype ("const " ^ I.name_of sl)
+                                (Object_option (I.port_target pt)))
+           | I.Rel_port pt ->
+             print o "  goo_port %s;" (I.name_of pt)
          ) (I.class_relations cl);
     );
   o "};";
@@ -241,6 +245,7 @@ let print_package_h pkg o =
   (* Forward declare classes. *)
   List.iter (fun c -> print o "GOO_CLASS_DECLARE(%s);" (class_name c))
     (I.package_classes pkg);
+  o "";
   (* Declare enums *)
   List.iter (fun e ->
       o "typedef enum {";
@@ -289,21 +294,20 @@ let print_class_impl_h cl o =
   o "";
   List.iter
     (fun func ->
-       print o "%s $impl(%s)(%s);"
-         (func_ret_str func) (I.name_of func)
-         (func_params_str func))
+       print o "$method %sself_%s(%s);"
+         (func_ret_str func) (I.name_of func) (func_params_str func))
     (I.class_funcs cl);
   o "";
   o "/* Internal definitions */";
   o "";
   List.iter
     (fun func ->
-       print o "#define $static_self_%s $%s"
-         (I.name_of func) (func_symbol func);
+       print o "#define static_self_%s self_%s" (I.name_of func) (I.name_of func);
+       print o "#define $self_%s $%s" (I.name_of func) (func_symbol func);
        let ret_type = func_ret_str func in
        let ret_call = if func_ret func = None then "" else "return " in
-       print o "%s static_%s(%s) { %s$impl(%s)(%s); }"
-         ret_type (I.name_of func) (func_params_str func)
+       print o "%sstatic_%s(%s) { %sself_%s(%s); }"
+         ret_type (func_symbol func) (func_params_str func)
          ret_call (I.name_of func) (func_args_str func)
     )
     (I.class_funcs cl);
@@ -318,6 +322,8 @@ let print_class_impl_h cl o =
         let target = I.port_target pt in
         let src_cl, src_name, src_id = rel_name_and_index cl col in
         let dst_cl, dst_name, dst_id = rel_name_and_index target pt in
+        print o "#define $port_%s_disconnect (void(*)(%s *, %s *))NULL"
+          src_name src_cl dst_cl;
         print o "GOO_INTERNAL_COLLECTION(%s, %s, %d, %s, %s, %d);"
           src_cl src_name src_id
           dst_cl dst_name dst_id;
@@ -328,12 +334,19 @@ let print_class_impl_h cl o =
         let target = I.port_target pt in
         let src_cl, src_name, src_id = rel_name_and_index cl sl in
         let dst_cl, dst_name, dst_id = rel_name_and_index target pt in
+        (* $send(self, on_##source_field##_disconnect) *)
+        print o "#define $port_%s_disconnect (void(*)(%s *, %s *))NULL"
+          src_name src_cl dst_cl;
         print o "GOO_INTERNAL_SLOT(%s, %s, %d, %s, %s, %d);"
           src_cl src_name src_id
           dst_cl dst_name dst_id;
         print_proxy o ("static_connect_" ^ I.name_of sl)
           ["self", Object cl; "item", Object target]
-      | I.Rel_port _ -> ()
+      | I.Rel_port pt ->
+        print o "#define $port_%s_disconnect(object) (void)0" (I.name_of pt);
+        print o "GOO_INTERNAL_PORT(%s, %s, %s);"
+          (class_name (I.port_target pt)) (I.name_of pt)
+          (class_name (I.port_source pt))
     ) (I.class_relations cl);
   o "";
   o "/* Heap variable setters */";
@@ -349,6 +362,21 @@ let print_class_impl_h cl o =
         print_proxy o ("static_set_" ^ name) ["self", Object cl; "v", typ]
       | _ -> ()
     ) (I.class_variables cl);
+  o "";
+  o "/* Events */";
+  o "";
+  iter_ancestors ~and_self:true cl
+    (fun cl ->
+       List.iter (fun event ->
+           print o "goo_bool event_%s_%s(%s);"
+             (class_name cl) (I.name_of event) (params_str (I.event_args event));
+           print o "#define $static_event_%s event_%s_%s"
+             (I.name_of event) (class_name cl) (I.name_of event);
+           print_proxy o
+             (sprint "event_%s_%s" (class_name cl) (I.name_of event);)
+             (I.event_args event)
+         ) (I.class_events cl)
+    );
   (*let print_field cl = function
     | Event (name, args) ->
       print o "#define self_on_%s %s" name (method_name cl ("on_" ^ name));

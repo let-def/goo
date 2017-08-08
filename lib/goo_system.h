@@ -291,7 +291,7 @@ GOO_CLASS_HIERARCHY(goo_object)
 #define $field(obj,name) ((obj)->self.name)
 #define $static(obj,name) __sub_EXPAND_(static_##obj##_##name)
 #define $alloc() goo_self_alloc()
-#define $impl(name) static static_self_##name
+#define $method static
 #define $number_of_properties(object) ($send(object, display_))->properties
 
 void *goo_dyncast_(goo_object *, const goo_class_witness * witness);
@@ -367,7 +367,7 @@ struct goo_collection {
     {                                                                    \
       goo_assert ($field(object, target_field).disconnect);              \
       $field(object, target_field).disconnect($as(object, goo_object));  \
-      $send(object, on_##target_field##_disconnect)(object);             \
+      $port_##target_field##_disconnect(object);                         \
     }                                                                    \
     goo_assert (!$field(object, target_field).parent);                   \
     goo_assert (!$field(object, target_field).disconnect);               \
@@ -387,15 +387,6 @@ struct goo_collection {
 
 #define GOO_SLOT(source, source_field, target) \
   target *source##_##source_field##_get(source *self)
-
-#define GOO_COLLECTION_METHODS(source, source_field, target) \
-  void (* const on_##source_field##_disconnect)(source* self, target *object)
-
-#define GOO_SLOT_METHODS(source, source_field, target) \
-  void (* const on_##source_field##_disconnect)(source* self, target *object)
-
-#define GOO_PORT_METHODS(target, target_field) \
-  void (* const on_##target_field##_disconnect)(target* self)
 
 #define GOO_INTERNAL_COLLECTION_(name, source, source_field, source_prop, target, target_field, target_prop) \
   static void name##_unlink(source *self, target *object)                     \
@@ -460,7 +451,7 @@ struct goo_collection {
     $field(object, target_field).disconnect = NULL;                           \
                                                                               \
     $ml_goo_port_disconnect(self, source_prop, object, target_prop,           \
-                            $send(self, on_##source_field##_disconnect));     \
+                            $port_##source_field##_disconnect);               \
   }                                                                           \
                                                                               \
   target *name##prev(target *object)                                          \
@@ -551,7 +542,7 @@ struct goo_collection {
     $field(object, target_field).disconnect = NULL;                       \
                                                                           \
     $ml_goo_port_disconnect(self, source_prop, object, target_prop,       \
-                            $send(self, on_##source_field##_disconnect)); \
+                            $port_##source_field##_disconnect);           \
   }                                                                       \
                                                                           \
   target *source##_##source_field##_get(source *self)                     \
@@ -563,7 +554,7 @@ struct goo_collection {
     return result;                                                        \
   }                                                                       \
                                                                           \
-  static void static_connect_##source_field(source *self, target *that)         \
+  static void static_connect_##source_field(source *self, target *that)   \
   {                                                                       \
     goo_assert (self != NULL && that != NULL);                            \
                                                                           \

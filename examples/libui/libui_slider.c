@@ -3,10 +3,10 @@
 
 static void on_changed(uiSlider *e, void *self)
 {
-  $static(self, on_changed)((libui_slider*)self);
+  $static(event, changed)((libui_slider*)self);
 }
 
-libui_slider *libui_slider_new(int min, int max)
+$method libui_slider *self_new(int min, int max)
 {
   libui_slider *self = $alloc();
   $field(self, control) = uiControl(uiNewSlider(min, max));
@@ -14,12 +14,12 @@ libui_slider *libui_slider_new(int min, int max)
   return self;
 }
 
-void libui_slider_set_value(libui_slider *self, int value)
+$method void self_set_value(libui_slider *self, int value)
 {
   uiSliderSetValue(WIDGET, value);
 }
 
-int libui_slider_value(libui_slider *self)
+$method int self_value(libui_slider *self)
 {
   return uiSliderValue(WIDGET);
 }

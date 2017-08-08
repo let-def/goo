@@ -70,7 +70,7 @@ let box = classe ui "box" ~extend:control
 
 let () =
   collection box "children" control_parent;
-  meth box [] "append" [arg "child" (Object control); arg "stretchy" bool];
+  self_meth box [] "append" [arg "child" (Object control); arg "stretchy" bool];
   prop box "padded";
   constructor box "new_horizontal" [];
   constructor box "new_vertical" []
@@ -78,8 +78,8 @@ let () =
 let checkbox = classe ui "checkbox" ~extend:control
 
 let ()=
-  meth checkbox [string] "text" [];
-  meth checkbox [] "set_text" [arg "text" string];
+  self_meth checkbox [string] "text" [];
+  self_meth checkbox [] "set_text" [arg "text" string];
   event checkbox [] "toggled" [];
   prop checkbox "checked";
   constructor checkbox "new" [arg "text" string]
@@ -87,8 +87,8 @@ let ()=
 let entry = classe ui "entry" ~extend:control
 
 let () =
-  meth entry [string] "text" [];
-  meth entry [] "set_text" [arg "text" string];
+  self_meth entry [string] "text" [];
+  self_meth entry [] "set_text" [arg "text" string];
   event entry [] "changed" [];
   prop entry "readonly";
   constructor entry "new" [];
@@ -98,28 +98,28 @@ let () =
 let label = classe ui "label" ~extend:control
 
 let () =
-  meth label [string] "text" [];
-  meth label [] "set_text" [arg "text" string];
+  self_meth label [string] "text" [];
+  self_meth label [] "set_text" [arg "text" string];
   constructor label "new" [arg "text" string]
 
 let tab = classe ui "tab" ~extend:control
 
 let () =
-  meth tab [int] "num_pages" [];
+  self_meth tab [int] "num_pages" [];
   collection tab "tabs" control_parent;
-  meth tab [] "append" [arg "name" string; arg "child" (Object control)];
-  meth tab [] "insert_at" [arg "name" string; arg "before" int; arg "child" (Object control)];
-  meth tab [bool] "is_tab_margined" [arg "page" int];
-  meth tab [] "set_tab_margined" [arg "page" int; arg "margined" bool];
+  self_meth tab [] "append" [arg "name" string; arg "child" (Object control)];
+  self_meth tab [] "insert_at" [arg "name" string; arg "before" int; arg "child" (Object control)];
+  self_meth tab [bool] "is_tab_margined" [arg "page" int];
+  self_meth tab [] "set_tab_margined" [arg "page" int; arg "margined" bool];
   constructor tab "new" []
 
 let group = classe ui "group" ~extend:control
 
 let () =
-  meth group [string] "title" [];
-  meth group [] "set_title" [arg "title" string];
+  self_meth group [string] "title" [];
+  self_meth group [] "set_title" [arg "title" string];
   slot group "child" control_parent;
-  meth group [] "child_connect" [arg "val" (Object control)];
+  self_meth group [] "child_connect" [arg "val" (Object control)];
   (*override "on_child_disconnect";*)
   prop group "margined";
   constructor group "new" [arg "title" string]
@@ -127,24 +127,24 @@ let () =
 let spinbox = classe ui "spinbox" ~extend:control
 
 let () =
-  meth spinbox [int] "value" [];
-  meth spinbox [] "set_value" [arg "value" int];
+  self_meth spinbox [int] "value" [];
+  self_meth spinbox [] "set_value" [arg "value" int];
   event spinbox [] "changed" [];
   constructor spinbox "new" [arg "min" int; arg "max" int]
 
 let slider = classe ui "slider" ~extend:control
 
 let () =
-  meth slider [int] "value" [];
-  meth slider [] "set_value" [arg "value" int];
+  self_meth slider [int] "value" [];
+  self_meth slider [] "set_value" [arg "value" int];
   event slider [] "changed" [];
   constructor slider "new" [arg "min" int; arg "max" int]
 
 let slider = classe ui "progressbar" ~extend:control
 
 let () =
-  meth slider [int] "value" [];
-  meth slider [] "set_value" [arg "value" int];
+  self_meth slider [int] "value" [];
+  self_meth slider [] "set_value" [arg "value" int];
   constructor slider "new" []
 
 let separator = classe ui "separator" ~extend:control
@@ -156,27 +156,27 @@ let () =
 let combobox = classe ui "combobox" ~extend:control
 
 let () =
-  meth combobox [] "append" [arg "text" string];
-  meth combobox [int] "selected" [];
-  meth combobox [] "set_selected" [arg "selected" int];
+  self_meth combobox [] "append" [arg "text" string];
+  self_meth combobox [int] "selected" [];
+  self_meth combobox [] "set_selected" [arg "selected" int];
   event combobox [] "selected" [];
   constructor combobox "new" []
 
 let editable_combobox = classe ui "editable_combobox" ~extend:control
 
 let () =
-  meth editable_combobox [] "append" [arg "text" string];
-  meth editable_combobox [string] "text" [];
-  meth editable_combobox [] "set_text" [arg "text" string];
+  self_meth editable_combobox [] "append" [arg "text" string];
+  self_meth editable_combobox [string] "text" [];
+  self_meth editable_combobox [] "set_text" [arg "text" string];
   event editable_combobox [] "changed" [];
   constructor editable_combobox "new" []
 
 let radio_buttons = classe ui "radio_buttons" ~extend:control
 
 let () =
-  meth radio_buttons [] "append" [arg "text" string];
-  meth radio_buttons [int] "selected" [];
-  meth radio_buttons [] "set_selected" [arg "selected" int];
+  self_meth radio_buttons [] "append" [arg "text" string];
+  self_meth radio_buttons [int] "selected" [];
+  self_meth radio_buttons [] "set_selected" [arg "selected" int];
   event radio_buttons [] "selected" [];
   constructor radio_buttons "new" []
 
@@ -190,9 +190,9 @@ let () =
 let multiline_entry = classe ui "multiline_entry" ~extend:control
 
 let () =
-  meth multiline_entry [string] "text" [];
-  meth multiline_entry [] "set_text" [arg "text" string];
-  meth multiline_entry [] "append" [arg "text" string];
+  self_meth multiline_entry [string] "text" [];
+  self_meth multiline_entry [] "set_text" [arg "text" string];
+  self_meth multiline_entry [] "append" [arg "text" string];
   event multiline_entry [] "changed" [];
   prop multiline_entry "readonly";
   constructor multiline_entry "new" [arg "wrap" bool]
@@ -203,8 +203,8 @@ let menu_item = classe ui "menu_item"
 
 let () =
   variable menu_item "control" (Custom "uiMenuItem *");
-  meth menu_item [] "enable" [];
-  meth menu_item [] "disable" [];
+  self_meth menu_item [] "enable" [];
+  self_meth menu_item [] "disable" [];
   event menu_item [] "clicked" [];
   prop menu_item "checked";
   constructor menu_item "new" [arg "item" (Custom "uiMenuItem *")]
@@ -214,12 +214,12 @@ let menu_item_parent = port menu_item "parent" menu
 let () =
   variable menu "control" (Custom "uiMenu *");
   collection menu "items" menu_item_parent;
-  meth menu [Object menu_item] "append_item" [arg "name" string];
-  meth menu [Object menu_item] "append_check_item" [arg "name" string];
-  meth menu [Object menu_item] "append_quit_item" [];
-  meth menu [Object menu_item] "append_preferences_item" [];
-  meth menu [Object menu_item] "append_about_item" [];
-  meth menu [] "append_separator" [];
+  self_meth menu [Object menu_item] "append_item" [arg "name" string];
+  self_meth menu [Object menu_item] "append_check_item" [arg "name" string];
+  self_meth menu [Object menu_item] "append_quit_item" [];
+  self_meth menu [Object menu_item] "append_preferences_item" [];
+  self_meth menu [Object menu_item] "append_about_item" [];
+  self_meth menu [] "append_separator" [];
   constructor menu "new" [arg "name" string]
 
 let () =
@@ -238,8 +238,8 @@ let () =
 let color_button = classe ui "color_button" ~extend:control
 
 let () =
-  meth color_button [float; float; float; float] "get_color" [];
-  meth color_button [] "set_color" [arg "r" float; arg "g" float; arg "b" float; arg "a" float];
+  self_meth color_button [float; float; float; float] "get_color" [];
+  self_meth color_button [] "set_color" [arg "r" float; arg "g" float; arg "b" float; arg "a" float];
   event color_button [] "changed" [];
   constructor color_button "new" []
 
@@ -247,8 +247,8 @@ let form = classe ui "form" ~extend:control
 
 let () =
   collection form "children" control_parent;
-  meth form [] "append" [arg "name" string; arg "c" (Object control); arg "stretchy" bool];
-  meth form [] "delete" [arg "child" (Object control)];
+  self_meth form [] "append" [arg "name" string; arg "c" (Object control); arg "stretchy" bool];
+  self_meth form [] "delete" [arg "child" (Object control)];
   prop form "padded";
   constructor form "new" []
 
@@ -262,14 +262,14 @@ let grid = classe ui "grid" ~extend:control
 
 let () =
   collection grid "children" control_parent;
-  meth grid [] "append" [
+  self_meth grid [] "append" [
     arg "c" (Object control);
     arg "left" int; arg "top" int;
     arg "xspan" int; arg "yspan" int;
     arg "hexpand" bool; arg "halign" (flag align);
     arg "vexpand" bool; arg "valign" (flag align);
   ];
-  meth grid [] "insert_at" [
+  self_meth grid [] "insert_at" [
     arg "c" (Object control);
     arg "existing" (Object control); arg "at" (flag at);
     arg "xspan" int; arg "yspan" int;
@@ -281,5 +281,5 @@ let () =
 
 let () =
   Goo_c.generate ui ~dir:"./";
-  Goo_ml.generate ui ~dir:"./"
+  (*Goo_ml.generate ui ~dir:"./"*)
 ;;

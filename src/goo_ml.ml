@@ -23,11 +23,11 @@ let func_name pkg fn = I.(mangle pkg fn.I.fn_name)
 exception Not_an_ml_type
 
 let mltype pkg = function
-  | Bool      -> "bool"
-  | Int       -> "int"
-  | Float     -> "float"
-  | String    -> "string"
-  | Enum e    -> enum_name e
+  | Bool   -> "bool"
+  | Int    -> "int"
+  | Float  -> "float"
+  | String -> "string"
+  | Enum e -> enum_name e
   | Cobject (t, false) -> sprint "[> %s] goo" (class_name pkg t)
   | Cobject (t, true) -> sprint "[> %s] goo option" (class_name pkg t)
   | Custom _  -> raise Not_an_ml_type

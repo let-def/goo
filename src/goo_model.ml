@@ -362,4 +362,8 @@ module Introspect = struct
 
   let collection_classe col = (prj col).col_classe
   let collection_port col = (prj col).col_port
+
+  let event_classe ev = (prj ev).ev_classe
+  let event_args ev = (prj ev).ev_args
+  let event_ret ev = (prj ev).ev_ret
 end

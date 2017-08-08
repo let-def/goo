@@ -133,4 +133,8 @@ module Introspect : sig
 
   val collection_classe : collection -> classe
   val collection_port   : collection -> port
+
+  val event_classe : event -> classe
+  val event_ret : event -> ctype list
+  val event_args : event -> arg list
 end

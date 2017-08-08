@@ -3,10 +3,10 @@
 
 static void on_changed(uiSpinbox *e, void *self)
 {
-  $static(self, on_changed)((libui_spinbox*)self);
+  $static(event, changed)((libui_spinbox*)self);
 }
 
-libui_spinbox *libui_spinbox_new(int min, int max)
+$method libui_spinbox *self_new(int min, int max)
 {
   libui_spinbox *self = $alloc();
   $field(self, control) = uiControl(uiNewSpinbox(min, max));
@@ -14,12 +14,12 @@ libui_spinbox *libui_spinbox_new(int min, int max)
   return self;
 }
 
-void libui_spinbox_set_value(libui_spinbox *self, int value)
+$method void self_set_value(libui_spinbox *self, int value)
 {
   uiSpinboxSetValue(WIDGET, value);
 }
 
-int libui_spinbox_value(libui_spinbox *self)
+$method int self_value(libui_spinbox *self)
 {
   return uiSpinboxValue(WIDGET);
 }
