@@ -2,6 +2,9 @@
 type name = string
 
 type _ id
+type void
+val forget : _ id -> void id
+
 type classe_desc
 type collection_desc
 type enum_desc
@@ -24,7 +27,8 @@ val classe : package -> ?extend:classe -> name -> classe
 type enum = enum_desc id
 type enum_member = enum_member_desc id
 val enum : package -> name -> enum
-val enum_member : enum -> name -> enum_member
+val enum_member' : enum -> name -> enum_member
+val enum_member : enum -> name -> unit
 
 (* Goo has a simple type system.
    Basic types represent simple values, the ones that don't appear in the heap
@@ -55,21 +59,24 @@ val arg: name -> ctype -> arg
    If body is specified, it will be used in C code. Otherwise, a stub is
    generated and will need to be implemented. *)
 type func = func_desc id
-type event
-val top_func: package -> ctype list -> name -> arg list -> func
-val func : classe -> ?self:bool -> ctype list -> name -> arg list -> func
-val meth : classe -> ?self:bool -> ctype list -> name -> arg list -> func
-val event : classe -> ctype list -> name -> arg list -> event
+type event = event_desc id
+val func' : package -> ctype list -> name -> arg list -> func
+val meth' : classe -> ctype list -> name -> arg list -> func
+val event' : classe -> ctype list -> name -> arg list -> event
+val func : package -> ctype list -> name -> arg list -> unit
+val meth : classe -> ctype list -> name -> arg list -> unit
+val event : classe -> ctype list -> name -> arg list -> unit
 
-val override : classe -> func -> func
 val variable : classe -> name -> ctype -> unit
 
 type port = port_desc id
 type collection = collection_desc id
 type slot = slot_desc id
-val port       : classe -> name -> classe -> port
-val collection : classe -> name -> port -> collection
-val slot       : classe -> name -> port -> slot
+val port        : classe -> name -> classe -> port
+val collection' : classe -> name -> port -> collection
+val slot'       : classe -> name -> port -> slot
+val collection : classe -> name -> port -> unit
+val slot       : classe -> name -> port -> unit
 
 (* Runtime support package and root of object hierarchy *)
 val goo : package
@@ -97,7 +104,6 @@ module Introspect : sig
   val class_depth     : classe -> int
   val class_funcs     : classe -> func list
   val class_variables : classe -> (name * ctype) list
-  val class_override  : classe -> func list
   val class_events    : classe -> event list
 
   type class_relation =
@@ -109,12 +115,11 @@ module Introspect : sig
 
   val enum_package : enum -> package
   val enum_members : enum -> enum_member list
+  val enum_member_enum : enum_member -> enum
 
   type func_kind =
-    | Fn_dynamic_method of classe
-    | Fn_static_method of classe
-    | Fn_package_func of package
-    | Fn_override of classe * func
+    | Fn_class of classe
+    | Fn_package of package
 
   val func_kind : func -> func_kind
   val func_ret : func -> ctype list

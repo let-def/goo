@@ -289,8 +289,9 @@ GOO_CLASS_HIERARCHY(goo_object)
 #define __sub_EXPAND_(x) __sub_EXPAND__(x)
 #define $send(obj,name) ((obj)->self.class_->name)
 #define $field(obj,name) ((obj)->self.name)
-#define $static(obj,name) __sub_EXPAND_(obj##_##name)
+#define $static(obj,name) __sub_EXPAND_(static_##obj##_##name)
 #define $alloc() goo_self_alloc()
+#define $impl(name) static static_self_##name
 #define $number_of_properties(object) ($send(object, display_))->properties
 
 void *goo_dyncast_(goo_object *, const goo_class_witness * witness);
@@ -507,7 +508,7 @@ struct goo_collection {
     return result;                                                            \
   }                                                                           \
                                                                               \
-  static void connect_##source_field(source *self, target *that, target *after_that) \
+  static void static_connect_##source_field(source *self, target *that, target *after_that) \
   {                                                                           \
     goo_assert (self != NULL && that != NULL);                                \
     /* Incorrect use: put after a child belonging to another container. */    \
@@ -562,7 +563,7 @@ struct goo_collection {
     return result;                                                        \
   }                                                                       \
                                                                           \
-  static void connect_##source_field(source *self, target *that)         \
+  static void static_connect_##source_field(source *self, target *that)         \
   {                                                                       \
     goo_assert (self != NULL && that != NULL);                            \
                                                                           \
@@ -583,14 +584,5 @@ struct goo_collection {
       (void*)_self_disconnect_##source_field;                             \
     *(target**)&$field(self, source_field) = that;                        \
   }
-
-#define GOO_INTERNAL_TABLE_COLLECTION(source_field) \
-  GOO_INTERNAL_TABLE_METHOD(on_##source_field##_disconnect)
-
-#define GOO_INTERNAL_TABLE_SLOT(source_field) \
-  GOO_INTERNAL_TABLE_METHOD(on_##source_field##_disconnect)
-
-#define GOO_INTERNAL_TABLE_PORT(source_field) \
-  GOO_INTERNAL_TABLE_METHOD(on_##source_field##_disconnect)
 
 #endif /* !__GOO_SYSTEM_H__ */

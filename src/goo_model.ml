@@ -55,6 +55,10 @@ end = struct
 end
 
 type 'a id = 'a Id.t
+type void
+let forget : _ id -> void id = Obj.magic
+let ignore_id : _ id -> unit = ignore
+
 let inj = Id.inj and prj = Id.prj and name_of = Id.name
 
 type 'a sealed_list = 'a Sealed_list.t
@@ -75,7 +79,6 @@ and classe_desc = {
   cl_extend: classe option;
   cl_funcs: func sealed_list;
   cl_variables: (name * ctype) sealed_list;
-  cl_override: func sealed_list;
   cl_events : event sealed_list;
   cl_relations : classe_relation sealed_list;
 }
@@ -92,10 +95,8 @@ and func_desc = {
 }
 
 and func_kind =
-  | Fn_dynamic_method of classe
-  | Fn_static_method of classe
-  | Fn_package_func of package
-  | Fn_override of classe * func
+  | Fn_class of classe
+  | Fn_package of package
 
 and event_desc = {
   ev_classe : classe;
@@ -164,7 +165,6 @@ let classe cl_package cl_extend name =
       cl_extend;
       cl_funcs = sealed_list seal;
       cl_variables = sealed_list seal;
-      cl_override = sealed_list seal;
       cl_relations = sealed_list seal;
       cl_events = sealed_list seal;
     } in
@@ -181,19 +181,25 @@ let enum en_package name =
     name (name_of en_package);
   result
 
-let enum_member enm_enum name =
+let enum_member' enm_enum name =
   let result = inj name { enm_enum } in
   append (prj enm_enum).en_members result
     "adding member %s to enumeration %s which is already sealed"
     name (name_of enm_enum);
   result
 
-let event ev_classe ev_ret name ev_args =
+let event' ev_classe ev_ret name ev_args =
   let ev = inj name { ev_classe; ev_ret; ev_args; } in
   append (prj ev_classe).cl_events ev
     "adding event %s to class %s which is already sealed"
     name (name_of ev_classe);
   ev
+
+let enum_member enm_enum name =
+  ignore_id (enum_member' enm_enum name)
+
+let event ev_classe ev_ret name ev_args =
+  ignore_id (event' ev_classe ev_ret name ev_args)
 
 let int    = Int
 let bool   = Bool
@@ -207,28 +213,15 @@ let objet_opt cl = Object_option cl
 let raw_func fn_kind fn_ret name fn_args =
   inj name { fn_args; fn_ret; fn_kind }
 
-let top_func pkg ret name args =
-  let func = raw_func (Fn_package_func pkg) ret name args in
+let func' pkg ret name args =
+  let func = raw_func (Fn_package pkg) ret name args in
   append (prj pkg).pk_funcs func
     "adding function %s to package %s which is already sealed"
     name (name_of pkg);
   func
 
-let add_self self cl args =
-  if self then (arg "self" (objet cl) :: args) else args
-
-let func cl ?(self=true) ret name args =
-  let args = add_self self cl args in
-  let func = raw_func (Fn_static_method cl) ret name args in
-  append (prj cl).cl_funcs func
-    "adding function %s to class %s which is already sealed"
-    name (name_of cl);
-  func
-
-
-let meth cl ?(self=true) ret name args =
-  let args = add_self self cl args in
-  let func = raw_func (Fn_dynamic_method cl) ret name args in
+let meth' cl ret name args =
+  let func = raw_func (Fn_class cl) ret name args in
   append (prj cl).cl_funcs func
     "adding method %s to class %s which is already sealed"
     name (name_of cl);
@@ -246,62 +239,10 @@ let compare_classe cl1 cl2 =
   else `Neq
 
 let func_args_at_class func classe =
-  let func_desc = prj func in
-  match func_desc.fn_kind with
-  | Fn_package_func _ -> func_desc.fn_args
-  | _ ->
-    let fn_args = match func_desc.fn_args with
-      | ("self", Object cl) :: rest when compare_classe cl classe = `Lt  ->
-        ("self", Object classe) :: rest
-      | args -> args
-    in
-    fn_args
-
-let override classe func =
-  let func =
-    let super = match (prj func).fn_kind with
-      | Fn_package_func pkg ->
-        failwithf "in class %s, try to override function %s.%s which is a package function"
-          (name_of classe) (name_of pkg) (name_of func)
-      | Fn_override (classe', _) | Fn_dynamic_method classe' | Fn_static_method classe' ->
-        classe'
-    in
-    if super = classe then
-      failwithf "in class %s, overriding method %s which is already defined in this class"
-        (name_of classe) (name_of func)
-    else
-      let rec check_super = function
-        | None ->
-          failwithf "in class %s, overriding method %s.%s but %s is not an ancestor of %s"
-            (name_of classe) (name_of super) (name_of func)
-            (name_of super) (name_of classe)
-        | Some cl ->
-          if cl = super then () else
-            check_super (prj cl).cl_extend
-      in
-      check_super (prj classe).cl_extend;
-      let is_override func' = (name_of func') = (name_of func) in
-      let rec find_func cl =
-        match List.find is_override
-                (Sealed_list.unsafe_rev_read (prj cl).cl_override)
-        with
-        | func -> func
-        | exception Not_found ->
-          match (prj cl).cl_extend with
-          | None -> assert false
-          | Some cl' -> find_func cl'
-      in
-      find_func super
-  in
-  let func_desc = { (prj func) with
-                    fn_args = func_args_at_class func classe;
-                    fn_kind = Fn_override (classe, func);
-                  } in
-  let func' = inj (name_of func) func_desc in
-  append (prj classe).cl_override func'
-    "overriding method %s in class %s which is already sealed"
-    (name_of func) (name_of classe);
-  func'
+  match (prj func).fn_args with
+  | ("self", Object cl) :: rest when compare_classe cl classe = `Lt  ->
+    ("self", Object classe) :: rest
+  | args -> args
 
 let variable classe name typ =
   append (prj classe).cl_variables (name, typ)
@@ -315,19 +256,31 @@ let port pt_target name pt_source =
     name (name_of pt_target);
   port
 
-let slot sl_classe name sl_port =
+let slot' sl_classe name sl_port =
   let slot = inj name { sl_classe; sl_port } in
   append (prj sl_classe).cl_relations (Rel_slot slot)
     "adding slot %s to class %s which is already sealed"
     name (name_of sl_classe);
   slot
 
-let collection col_classe name col_port =
+let collection' col_classe name col_port =
   let collection = inj name { col_classe; col_port } in
   append (prj col_classe).cl_relations (Rel_collection collection)
     "adding collection %s to class %s which is already sealed"
     name (name_of col_classe);
   collection
+
+let func pkg ret name args =
+  ignore_id (func' pkg ret name args)
+
+let meth cl ret name args =
+  ignore_id (meth' cl ret name args)
+
+let slot sl_classe name sl_port =
+  ignore_id (slot' sl_classe name sl_port)
+
+let collection col_classe name col_port =
+  ignore_id (collection' col_classe name col_port)
 
 let seal_package pkg =
   ignore (Sealed_list.read (prj pkg).pk_classes)
@@ -339,7 +292,7 @@ let seal_classe cl =
 let goo = package "goo"
 
 let goo_object = classe goo None "object"
-let goo_destroy = meth goo_object [] "destroy" []
+let goo_destroy = meth' goo_object [] "destroy" []
 
 let () = (
   seal_package goo;
@@ -377,7 +330,6 @@ module Introspect = struct
     aux 0 cl
   let class_funcs cl = read (prj cl).cl_funcs
   let class_variables cl = read (prj cl).cl_variables
-  let class_override cl = read (prj cl).cl_override
   let class_events cl = read (prj cl).cl_events
 
   type class_relation = classe_relation =
@@ -389,12 +341,11 @@ module Introspect = struct
 
   let enum_package en = (prj en).en_package
   let enum_members en = read (prj en).en_members
+  let enum_member_enum enm = (prj enm).enm_enum
 
   type nonrec func_kind = func_kind =
-    | Fn_dynamic_method of classe
-    | Fn_static_method of classe
-    | Fn_package_func of package
-    | Fn_override of classe * func
+  | Fn_class of classe
+  | Fn_package of package
 
   let func_kind fn = (prj fn).fn_kind
   let func_ret fn = (prj fn).fn_ret

@@ -3,250 +3,281 @@
 open Goo_model
 
 let ui = package "libui"
-let static name = meth ~static:true name
-let prop name = group [
-    static ("is_" ^ name) [] ~ret:bool;
-    static ("set_" ^ name) [arg name bool];
-  ]
+
+let self_meth cl ret name args =
+  meth cl ret name (arg "self" (Object cl) :: args)
+
+let constructor cl name args =
+  Goo_c.set_concrete cl;
+  meth cl [Object cl] name args
+
+let prop cl name =
+  self_meth cl [bool] ("is_" ^ name) [];
+  self_meth cl [] ("set_" ^ name) [arg name bool]
 
 let () =
-  declare ui ["#include \"ui.h\""];
-  func ui "init" [] ~ret:string;
-  func ui "uninit" [];
-  func ui "main" [];
-  func ui "main_steps" [];
-  func ui "main_step" [arg "wait" int] ~ret:int;
-  func ui "quit" []
+  Goo_c.package_declare ui ["#include \"ui.h\""];
+  func ui [string] "init" [];
+  func ui [] "uninit" [];
+  func ui [] "main" [];
+  func ui [] "main_steps" [];
+  func ui [int] "main_step" [arg "wait" int];
+  func ui [] "quit" []
 
-let control = cclass ui "control" [
-    override "destroy";
-    variable "control" (custom "uiControl *");
-    (* uintptr_t uiControlHandle(uiControl * ); *)
-    static "is_toplevel" [] ~ret:bool;
-    static "is_visible" [] ~ret:bool;
-    static "show" [];
-    static "hide" [];
-    static "is_enabled" [] ~ret:bool;
-    static "enable" [];
-    static "disable" [];
-  ]
+let control = classe ui "control"
+
+let () =
+  (*override "destroy";*)
+  variable control "control" (Custom "uiControl *");
+  (* uintptr_t uiControlHandle(uiControl * ); *)
+  self_meth control [bool] "is_toplevel" [];
+  self_meth control [bool] "is_visible" [];
+  self_meth control [] "show" [];
+  self_meth control [] "hide" [];
+  self_meth control [bool] "is_enabled" [];
+  self_meth control [] "enable" [];
+  self_meth control [] "disable" []
 
 let control_parent = port control "parent" control
 
-let window = cclass ui "window" ~extend:control [
-    static "title" [] ~ret:string;
-    static "set_title" [arg "title" string];
-    static "content_width" [] ~ret:int;
-    static "content_height" [] ~ret:int;
-    static "set_content_size" [arg "width" int; arg "height" int];
-    prop "fullscreen";
-    event "content_size_changed" [];
-    event "closing" [];
-    prop "borderless";
-    slot "child" control_parent;
-    meth "child_connect" [arg "val" (cobject control)];
-    override "on_child_disconnect";
-    prop "margined";
+let window = classe ui "window" ~extend:control
 
-    constructor "new" [arg "title" string; arg "width" int; arg "height" int; arg "has_menubar" bool];
-  ]
+let () =
+  self_meth window [string] "title" [];
+  self_meth window [] "set_title" [arg "title" string];
+  self_meth window [int; int] "content_size" [];
+  self_meth window [] "set_content_size" [arg "width" int; arg "height" int];
+  prop window "fullscreen";
+  event window [] "content_size_changed" [];
+  event window [] "closing" [];
+  prop window "borderless";
+  slot window "child" control_parent;
+  self_meth window [] "child_connect" [arg "val" (Object control)];
+  (*override "on_child_disconnect";*)
+  prop window "margined";
+  constructor window "new"
+        [arg "title" string; arg "width" int; arg "height" int; arg "has_menubar" bool]
 
-let button = cclass ui "button" ~extend:control [
-    static "text" [] ~ret:string;
-    static "set_text" [arg "text" string];
-    event "clicked" [];
-    constructor "new" [arg "text" string];
-  ]
+let button = classe ui "button" ~extend:control
 
-let box = cclass ui "box" ~extend:control [
-    collection "children" control_parent;
-    static "append" [arg "child" (cobject control); arg "stretchy" bool];
-    prop "padded";
-    constructor "new_horizontal" [];
-    constructor "new_vertical" [];
-  ]
+let () =
+  self_meth button [string] "text" [];
+  self_meth button [] "set_text" [arg "text" string];
+  event button [] "clicked" [];
+  constructor button "new" [arg "text" string]
 
-let checkbox = cclass ui "checkbox" ~extend:control [
-    static "text" [] ~ret:string;
-    static "set_text" [arg "text" string];
-    event "toggled" [];
-    prop "checked";
-    constructor "new" [arg "text" string];
-  ]
+let box = classe ui "box" ~extend:control
 
-let entry = cclass ui "entry" ~extend:control [
-    static "text" [] ~ret:string;
-    static "set_text" [arg "text" string];
-    event "changed" [];
-    prop "readonly";
-    constructor "new" [];
-    constructor "new_password" [];
-    constructor "new_search" [];
-  ]
+let () =
+  collection box "children" control_parent;
+  meth box [] "append" [arg "child" (Object control); arg "stretchy" bool];
+  prop box "padded";
+  constructor box "new_horizontal" [];
+  constructor box "new_vertical" []
 
-let label = cclass ui "label" ~extend:control [
-    static "text" [] ~ret:string;
-    static "set_text" [arg "text" string];
-    constructor "new" [arg "text" string];
-  ]
+let checkbox = classe ui "checkbox" ~extend:control
 
-let tab = cclass ui "tab" ~extend:control [
-    static "num_pages" [] ~ret:int;
-    collection "tabs" control_parent;
-    static "append" [arg "name" string; arg "child" (cobject control)];
-    static "insert_at" [arg "name" string; arg "before" int; arg "child" (cobject control)];
-    static "is_tab_margined" [arg "page" int] ~ret:bool;
-    static "set_tab_margined" [arg "page" int; arg "margined" bool];
-    constructor "new" [];
-  ]
+let ()=
+  meth checkbox [string] "text" [];
+  meth checkbox [] "set_text" [arg "text" string];
+  event checkbox [] "toggled" [];
+  prop checkbox "checked";
+  constructor checkbox "new" [arg "text" string]
 
-let group = cclass ui "group" ~extend:control [
-    static "title" [] ~ret:string;
-    static "set_title" [arg "title" string];
-    slot "child" control_parent;
-    static "child_connect" [arg "val" (cobject control)];
-    override "on_child_disconnect";
-    prop "margined";
-    constructor "new" [arg "title" string];
-  ]
+let entry = classe ui "entry" ~extend:control
 
-let spinbox = cclass ui "spinbox" ~extend:control [
-    static "value" [] ~ret:int;
-    static "set_value" [arg "value" int];
-    event "changed" [];
-    constructor "new" [arg "min" int; arg "max" int];
-  ]
+let () =
+  meth entry [string] "text" [];
+  meth entry [] "set_text" [arg "text" string];
+  event entry [] "changed" [];
+  prop entry "readonly";
+  constructor entry "new" [];
+  constructor entry "new_password" [];
+  constructor entry "new_search" []
 
-let slider = cclass ui "slider" ~extend:control [
-    static "value" [] ~ret:int;
-    static "set_value" [arg "value" int];
-    event "changed" [];
-    constructor "new" [arg "min" int; arg "max" int];
-  ]
+let label = classe ui "label" ~extend:control
 
-let slider = cclass ui "progressbar" ~extend:control [
-    static "value" [] ~ret:int;
-    static "set_value" [arg "value" int];
-    constructor "new" [];
-  ]
+let () =
+  meth label [string] "text" [];
+  meth label [] "set_text" [arg "text" string];
+  constructor label "new" [arg "text" string]
 
-let separator = cclass ui "separator" ~extend:control [
-    constructor "new_horizontal" [];
-    constructor "new_vertical" [];
-  ]
+let tab = classe ui "tab" ~extend:control
 
-let combobox = cclass ui "combobox" ~extend:control [
-    static "append" [arg "text" string];
-    static "selected" [] ~ret:int;
-    static "set_selected" [arg "selected" int];
-    event "selected" [];
-    constructor "new" [];
-  ]
+let () =
+  meth tab [int] "num_pages" [];
+  collection tab "tabs" control_parent;
+  meth tab [] "append" [arg "name" string; arg "child" (Object control)];
+  meth tab [] "insert_at" [arg "name" string; arg "before" int; arg "child" (Object control)];
+  meth tab [bool] "is_tab_margined" [arg "page" int];
+  meth tab [] "set_tab_margined" [arg "page" int; arg "margined" bool];
+  constructor tab "new" []
 
-let editable_combobox = cclass ui "editable_combobox" ~extend:control [
-    static "append" [arg "text" string];
-    static "text" [] ~ret:string;
-    static "set_text" [arg "text" string];
-    event "changed" [];
-    constructor "new" [];
-  ]
+let group = classe ui "group" ~extend:control
 
-let radio_buttons = cclass ui "radio_buttons" ~extend:control [
-    static "append" [arg "text" string];
-    static "selected" [] ~ret:int;
-    static "set_selected" [arg "selected" int];
-    event "selected" [];
-    constructor "new" [];
-  ]
+let () =
+  meth group [string] "title" [];
+  meth group [] "set_title" [arg "title" string];
+  slot group "child" control_parent;
+  meth group [] "child_connect" [arg "val" (Object control)];
+  (*override "on_child_disconnect";*)
+  prop group "margined";
+  constructor group "new" [arg "title" string]
 
-let date_time_picker = cclass ui "date_time_picker" ~extend:control [
-    constructor "new" [];
-    constructor "new_date" [];
-    constructor "new_time" [];
-  ]
+let spinbox = classe ui "spinbox" ~extend:control
 
-let multiline_entry = cclass ui "multiline_entry" ~extend:control [
-    static "text" [] ~ret:string;
-    static "set_text" [arg "text" string];
-    static "append" [arg "text" string];
-    event "changed" [];
-    prop "readonly";
-    constructor "new" [arg "wrap" bool];
-  ]
+let () =
+  meth spinbox [int] "value" [];
+  meth spinbox [] "set_value" [arg "value" int];
+  event spinbox [] "changed" [];
+  constructor spinbox "new" [arg "min" int; arg "max" int]
 
-let menu = cclass ui "menu" []
+let slider = classe ui "slider" ~extend:control
 
-let menu_item = cclass ui "menu_item" [
-    variable "control" (custom "uiMenuItem *");
-    static "enable" [];
-    static "disable" [];
-    event "clicked" [];
-    prop "checked";
-    constructor "new" [arg "item" (custom "uiMenuItem *")];
-  ]
+let () =
+  meth slider [int] "value" [];
+  meth slider [] "set_value" [arg "value" int];
+  event slider [] "changed" [];
+  constructor slider "new" [arg "min" int; arg "max" int]
+
+let slider = classe ui "progressbar" ~extend:control
+
+let () =
+  meth slider [int] "value" [];
+  meth slider [] "set_value" [arg "value" int];
+  constructor slider "new" []
+
+let separator = classe ui "separator" ~extend:control
+
+let () =
+  constructor separator "new_horizontal" [];
+  constructor separator "new_vertical" []
+
+let combobox = classe ui "combobox" ~extend:control
+
+let () =
+  meth combobox [] "append" [arg "text" string];
+  meth combobox [int] "selected" [];
+  meth combobox [] "set_selected" [arg "selected" int];
+  event combobox [] "selected" [];
+  constructor combobox "new" []
+
+let editable_combobox = classe ui "editable_combobox" ~extend:control
+
+let () =
+  meth editable_combobox [] "append" [arg "text" string];
+  meth editable_combobox [string] "text" [];
+  meth editable_combobox [] "set_text" [arg "text" string];
+  event editable_combobox [] "changed" [];
+  constructor editable_combobox "new" []
+
+let radio_buttons = classe ui "radio_buttons" ~extend:control
+
+let () =
+  meth radio_buttons [] "append" [arg "text" string];
+  meth radio_buttons [int] "selected" [];
+  meth radio_buttons [] "set_selected" [arg "selected" int];
+  event radio_buttons [] "selected" [];
+  constructor radio_buttons "new" []
+
+let date_time_picker = classe ui "date_time_picker" ~extend:control
+
+let () =
+  constructor date_time_picker "new" [];
+  constructor date_time_picker "new_date" [];
+  constructor date_time_picker "new_time" []
+
+let multiline_entry = classe ui "multiline_entry" ~extend:control
+
+let () =
+  meth multiline_entry [string] "text" [];
+  meth multiline_entry [] "set_text" [arg "text" string];
+  meth multiline_entry [] "append" [arg "text" string];
+  event multiline_entry [] "changed" [];
+  prop multiline_entry "readonly";
+  constructor multiline_entry "new" [arg "wrap" bool]
+
+let menu = classe ui "menu"
+
+let menu_item = classe ui "menu_item"
+
+let () =
+  variable menu_item "control" (Custom "uiMenuItem *");
+  meth menu_item [] "enable" [];
+  meth menu_item [] "disable" [];
+  event menu_item [] "clicked" [];
+  prop menu_item "checked";
+  constructor menu_item "new" [arg "item" (Custom "uiMenuItem *")]
 
 let menu_item_parent = port menu_item "parent" menu
 
-let () = fields menu [
-    variable "control" (custom "uiMenu *");
-    collection "items" menu_item_parent;
-    static "append_item" [arg "name" string] ~ret:(cobject menu_item);
-    static "append_check_item" [arg "name" string] ~ret:(cobject menu_item);
-    static "append_quit_item" [] ~ret:(cobject menu_item);
-    static "append_preferences_item" [] ~ret:(cobject menu_item);
-    static "append_about_item" [] ~ret:(cobject menu_item);
-    static "append_separator" [];
-    constructor "new" [arg "name" string];
-  ]
+let () =
+  variable menu "control" (Custom "uiMenu *");
+  collection menu "items" menu_item_parent;
+  meth menu [Object menu_item] "append_item" [arg "name" string];
+  meth menu [Object menu_item] "append_check_item" [arg "name" string];
+  meth menu [Object menu_item] "append_quit_item" [];
+  meth menu [Object menu_item] "append_preferences_item" [];
+  meth menu [Object menu_item] "append_about_item" [];
+  meth menu [] "append_separator" [];
+  constructor menu "new" [arg "name" string]
 
-let () = (
-  func ui "open_file" [arg "parent" (cobject window)] ~ret:string;
-  func ui "save_file" [arg "parent" (cobject window)] ~ret:string;
-  func ui "msg_box" [arg "parent" (cobject window); arg "title" string; arg "description" string];
-  func ui "msg_box_error" [arg "parent" (cobject window); arg "title" string; arg "description" string];
-)
+let () =
+  func ui [string] "open_file" [arg "parent" (Object window)];
+  func ui [string] "save_file" [arg "parent" (Object window)];
+  func ui [] "msg_box" [arg "parent" (Object window); arg "title" string; arg "description" string];
+  func ui [] "msg_box_error" [arg "parent" (Object window); arg "title" string; arg "description" string]
 
-let font_button = cclass ui "font_button" ~extend:control [
-    (*_UI_EXTERN uiDrawTextFont *uiFontButtonFont(uiFontButton *b);*)
-    event "changed" [];
-    constructor "new" [];
-  ]
+let font_button = classe ui "font_button" ~extend:control
 
-let color_button = cclass ui "color_button" ~extend:control [
-    (*_UI_EXTERN void uiColorButtonColor(uiColorButton *b, double *r, double *g, double *bl, double *a);*)
-    static "set_color" [arg "r" float; arg "g" float; arg "b" float; arg "a" float];
-    event "changed" [];
-    constructor "new" [];
-  ]
+let () =
+  (*_UI_EXTERN uiDrawTextFont *uiFontButtonFont(uiFontButton *b);*)
+  event font_button [] "changed" [];
+  constructor font_button "new" []
 
-let form = cclass ui "form" ~extend:control [
-    collection "children" control_parent;
-    static "append" [arg "name" string; arg "c" (cobject control); arg "stretchy" bool];
-    static "delete" [arg "child" (cobject control)];
-    prop "padded";
-    constructor "new" [];
-  ]
+let color_button = classe ui "color_button" ~extend:control
 
-let align = enum ui "align" ["Fill"; "Start"; "Center"; "End"]
-let at = enum ui "at" ["Leading"; "Top"; "Trailing"; "Bottom"]
+let () =
+  meth color_button [float; float; float; float] "get_color" [];
+  meth color_button [] "set_color" [arg "r" float; arg "g" float; arg "b" float; arg "a" float];
+  event color_button [] "changed" [];
+  constructor color_button "new" []
 
-let grid = cclass ui "grid" ~extend:control [
-    collection "children" control_parent;
-    static "append" [arg "c" (cobject control);
-                     arg "left" int; arg "top" int;
-                     arg "xspan" int; arg "yspan" int;
-                     arg "hexpand" bool; arg "halign" align;
-                     arg "vexpand" bool; arg "valign" align;
-                    ];
-    static "insert_at" [arg "c" (cobject control);
-                        arg "existing" (cobject control); arg "at" at;
-                        arg "xspan" int; arg "yspan" int;
-                        arg "hexpand" bool; arg "halign" align;
-                        arg "vexpand" bool; arg "valign" align;
-                       ];
-    prop "padded";
-    constructor "new" [];
-  ]
+let form = classe ui "form" ~extend:control
+
+let () =
+  collection form "children" control_parent;
+  meth form [] "append" [arg "name" string; arg "c" (Object control); arg "stretchy" bool];
+  meth form [] "delete" [arg "child" (Object control)];
+  prop form "padded";
+  constructor form "new" []
+
+let align = enum ui "align"
+let () = List.iter (enum_member align) ["Fill"; "Start"; "Center"; "End"]
+
+let at = enum ui "at"
+let () = List.iter (enum_member at) ["Leading"; "Top"; "Trailing"; "Bottom"]
+
+let grid = classe ui "grid" ~extend:control
+
+let () =
+  collection grid "children" control_parent;
+  meth grid [] "append" [
+    arg "c" (Object control);
+    arg "left" int; arg "top" int;
+    arg "xspan" int; arg "yspan" int;
+    arg "hexpand" bool; arg "halign" (flag align);
+    arg "vexpand" bool; arg "valign" (flag align);
+  ];
+  meth grid [] "insert_at" [
+    arg "c" (Object control);
+    arg "existing" (Object control); arg "at" (flag at);
+    arg "xspan" int; arg "yspan" int;
+    arg "hexpand" bool; arg "halign" (flag align);
+    arg "vexpand" bool; arg "valign" (flag align);
+  ];
+  prop grid "padded";
+  constructor grid "new" []
 
 let () =
   Goo_c.generate ui ~dir:"./";
