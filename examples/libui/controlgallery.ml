@@ -43,15 +43,13 @@ let make_numbers_page () =
   let spinbox = spinbox_new 0 100 in
 	let slider = slider_new 0 100 in
 	let pbar = progressbar_new () in
-  Goo.set_handler spinbox (fun self `changed ->
+  Goo.set_event spinbox event_spinbox_changed (fun self ->
       slider_set_value slider (spinbox_value self);
-      progressbar_set_value pbar (spinbox_value self);
-      true
+      progressbar_set_value pbar (spinbox_value self)
     );
-  Goo.set_handler slider (fun self `changed ->
+  Goo.set_event slider event_slider_changed (fun self ->
       spinbox_set_value spinbox (slider_value self);
-      progressbar_set_value pbar (slider_value self);
-      true
+      progressbar_set_value pbar (slider_value self)
     );
   box_append vbox spinbox false;
   box_append vbox slider false;
@@ -154,10 +152,9 @@ let make_data_choosers_page mainwin =
   let button = button_new "Open File" in
   let entry = entry_new () in
   entry_set_readonly entry true;
-  Goo.set_handler button (fun self `clicked ->
+  Goo.set_event button event_button_clicked (fun self ->
       let filename = open_file mainwin in
       entry_set_text entry (if filename = "" then "(cancelled)" else filename);
-      true
     );
   grid_append grid button 0 0 1 1 false `Fill false `Fill;
   grid_append grid entry  1 0 1 1 true  `Fill false `Fill;
@@ -165,10 +162,9 @@ let make_data_choosers_page mainwin =
   let button = button_new "Save File" in
   let entry = entry_new () in
   entry_set_readonly entry true;
-  Goo.set_handler button (fun self `clicked ->
+  Goo.set_event button event_button_clicked (fun self ->
       let filename = save_file mainwin in
-      entry_set_text entry (if filename = "" then "(cancelled)" else filename);
-      true
+      entry_set_text entry (if filename = "" then "(cancelled)" else filename)
     );
   grid_append grid button 0 1 1 1 false `Fill false `Fill;
   grid_append grid entry  1 1 1 1 true  `Fill false `Fill;
@@ -178,19 +174,17 @@ let make_data_choosers_page mainwin =
   grid_append grid msggrid 0 2 2 1 false `Center false `Start;
 
   let button = button_new "Message Box" in
-  Goo.set_handler button (fun self `clicked ->
+  Goo.set_event button event_button_clicked (fun self ->
       msg_box mainwin
         "This is a normal message box."
-        "More detailed information can be shown here.";
-      true
+        "More detailed information can be shown here."
     );
   grid_append msggrid button 0 0 1 1 false `Fill false `Fill;
   let button = button_new "Error Box" in
-  Goo.set_handler button (fun self `clicked ->
+  Goo.set_event button event_button_clicked (fun self ->
       msg_box_error mainwin
         "This message box describes an error."
         "More detailed information can be shown here.";
-      true
     );
   grid_append msggrid button 1 0 1 1 false `Fill false `Fill;
   hbox
@@ -210,9 +204,9 @@ let main () =
     | err -> failwith err
   end;
   let mainwin = window_new "OCaml goo/libui Control Gallery" 640 480 true in
-  Goo.set_handler mainwin (fun self -> function
-      | `closing -> quit (); true
-      | _ -> false);
+  Goo.set_event mainwin event_window_closing (fun self ->
+      quit ()
+    );
   (*uiOnShouldQuit(onShouldQuit, mainwin);*)
 
   let tab = tab_new () in

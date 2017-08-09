@@ -8,12 +8,12 @@ static libui_separator *init(uiSeparator *sep)
   return self;
 }
 
-libui_separator *libui_separator_new_vertical(void)
+$method libui_separator *self_new_vertical(void)
 {
   return init(uiNewVerticalSeparator());
 }
 
-libui_separator *libui_separator_new_horizontal(void)
+$method libui_separator *self_new_horizontal(void)
 {
   return init(uiNewHorizontalSeparator());
 }

@@ -1,29 +1,29 @@
 #include "libui_tab.h"
 #define WIDGET uiTab($field(self, control))
 
-libui_tab *libui_tab_new(void)
+$method libui_tab *self_new(void)
 {
   libui_tab *self = $alloc();
   $field(self, control) = uiControl(uiNewTab());
   return self;
 }
 
-void libui_tab_set_tab_margined(libui_tab *self, int page, goo_bool margined)
+$method void self_set_tab_margined(libui_tab *self, int page, goo_bool margined)
 {
   uiTabSetMargined(WIDGET, page, margined);
 }
 
-goo_bool libui_tab_is_tab_margined(libui_tab *self, int page)
+$method goo_bool self_is_tab_margined(libui_tab *self, int page)
 {
   return uiTabMargined(WIDGET, page);
 }
 
-int libui_tab_num_pages(libui_tab *self)
+$method int self_num_pages(libui_tab *self)
 {
   return uiTabNumPages(WIDGET);
 }
 
-void libui_tab_insert_at(libui_tab *self, goo_string name, int before, libui_control *child)
+$method void self_insert_at(libui_tab *self, goo_string name, int before, libui_control *child)
 {
   libui_control *after = NULL;
   if (before > 0)
@@ -36,7 +36,7 @@ void libui_tab_insert_at(libui_tab *self, goo_string name, int before, libui_con
   uiTabInsertAt(WIDGET, goo_string_data(name), before, $field(child, control));
 }
 
-void libui_tab_append(libui_tab *self, goo_string name, libui_control *child)
+$method void self_append(libui_tab *self, goo_string name, libui_control *child)
 {
   $static(connect,tabs)(self, child, libui_tab_tabs_last(self));
   uiTabAppend(WIDGET, goo_string_data(name), $field(child, control));

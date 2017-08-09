@@ -8,17 +8,17 @@ static libui_date_time_picker *init(uiDateTimePicker *control)
   return self;
 }
 
-libui_date_time_picker *libui_date_time_picker_new_time(void)
+$method libui_date_time_picker *self_new_time(void)
 {
   return init(uiNewTimePicker());
 }
 
-libui_date_time_picker *libui_date_time_picker_new_date(void)
+$method libui_date_time_picker *self_new_date(void)
 {
   return init(uiNewDatePicker());
 }
 
-libui_date_time_picker *libui_date_time_picker_new(void)
+$method libui_date_time_picker *self_new(void)
 {
   return init(uiNewDateTimePicker());
 }

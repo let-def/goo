@@ -33,20 +33,11 @@ let mltype pkg = function
   | Object_option t -> sprint "[> %s] goo option" (class_name pkg t)
   | Custom _  -> raise Not_an_ml_type
 
-let rec has_events c =
-  I.class_events c <> [] ||
-  match I.class_extend c with
-  | None -> false
-  | Some c' -> has_events c'
-
-let ml_function pkg ?(has_events=false) args ret =
+let ml_function pkg ?(allow_caf=false) args ret =
   let mltype_ret = function
     | (Object t | Object_option t as x) ->
       let opt = match x with Object_option _ -> " option" | _ -> "" in
-      if has_events then
-        sprint "[ %s | %s_events handler ] goo%s" (class_name pkg t) (class_name pkg t) opt
-      else
-        sprint "%s goo%s" (class_name pkg t) opt
+      sprint "%s goo%s" (class_name pkg t) opt
     | x -> mltype pkg x
   in
   let rec aux acc = function
@@ -56,7 +47,7 @@ let ml_function pkg ?(has_events=false) args ret =
     | (_, typ) :: xs -> aux (mltype pkg typ :: acc) xs
   in
   let args = match aux [] args with
-    | [ret] -> ["unit"; ret]
+    | [ret] when not allow_caf -> ["unit"; ret]
     | args -> args
   in
   String.concat " -> " args
@@ -72,38 +63,12 @@ let print_ml_stubs pkg o =
       o "]";
     ) (I.package_enums pkg);
   List.iter (fun c ->
-      let events = List.fold_left (fun acc event ->
-          if I.event_args event = [] then
-            ("  | `" ^ I.name_of event) :: acc
-          else
-            let args = List.map snd (I.event_args event) in
-            let args = String.concat " * " (List.map (mltype pkg) args) in
-            sprint "  | `%s of (%s)\n" (I.name_of event) args :: acc
-        ) [] (I.class_events c)
-      in
       begin match I.class_extend c with
-        | None ->
-          let cname = class_name pkg c in
-          print o "type %s = [`%s]" (I.name_of c) cname;
-          if events <> [] then (
-            print o "type %s_events = [" cname;
-            List.iter o events;
-            o "]";
-          )
+        | None -> print o "type %s = [`%s]" (I.name_of c) (class_name pkg c)
         | Some c' ->
           let cname = class_name pkg c in
           let c'name = class_name pkg c' in
           print o "type %s = [`%s | %s]" cname (C.class_name c) c'name;
-          if events = [] then (
-            if has_events c' then
-              print o "type %s_events = %s_events" (C.class_name c) c'name
-          ) else (
-            print o "type %s_events = [" cname;
-            List.iter o events;
-            if has_events c' then
-              print o "  | %s_events" c'name;
-            o "]";
-          )
       end;
       o ""
     ) (I.package_classes pkg);
@@ -113,39 +78,37 @@ let print_ml_stubs pkg o =
         (ml_function pkg (I.func_args func) (I.func_ret func))
         (c_func_name func)
     ) (I.package_funcs pkg);
-  List.iter (fun c ->
+  List.iter (fun cl ->
       o "";
-      let cname' = I.name_of c in
-      let cname = C.class_name c in
+      let cname' = I.name_of cl in
+      let cname = C.class_name cl in
       print o "external %s_witness : unit -> %s witness = \"ml_witness_%s\"" cname' cname' cname;
-      (*
-      let stub_name fmt =
-        Printf.ksprintf (fun name arity ->
-            if arity > 5 then
-              sprint "\"ml_bc_%s\" \"ml_%s\"" name name
-            else
-              sprint "\"ml_%s\"" name
-          ) fmt
+      let stub_name name arity =
+        if arity > 5 then
+          sprint "\"ml_bc_%s\" \"ml_%s\"" name name
+        else
+          sprint "\"ml_%s\"" name
       in
-      let self = ("", cobject c) in
-      let f = function
-          | Method (name, args, ret, _, _(*false*)) ->
+      List.iter (fun func ->
+          try
             print o "external %s_%s : %s = %s"
-              cname' name (ml_function pkg (self :: args) ret)
-              (stub_name "%s_%s" cname name (List.length args + 1))
-          | Variable (name, (Cobject _ as typ)) ->
-            print o "external %s_set_%s : %s = \"ml_%s_set_%s\""
-              cname' name (ml_function pkg [self; "val", typ] None) cname name;
-            print o "external %s_unset_%s : %s = \"ml_%s_unset_%s\""
-              cname' name (ml_function pkg [self] None) cname name
-          | Constructor (name, args, _) ->
-            print o "external %s_%s : %s = %s"
-              cname' name (ml_function pkg ~has_events:(has_events c) args (Some (cobject c)))
-              (stub_name "%s_%s" cname name (List.length args))
-          | Collection (name, p) ->
+              (I.name_of cl) (I.name_of func)
+              (ml_function pkg (I.func_args func) (I.func_ret func))
+              (stub_name (C.func_symbol func) (List.length (I.func_args func)))
+          with Not_an_ml_type -> ())
+        (I.class_funcs cl);
+      List.iter (fun event ->
+          print o "let event_%s_%s : ([> %s], %s) event = Obj.magic %d"
+            (I.name_of cl) (I.name_of event) (I.name_of cl)
+            (ml_function pkg ~allow_caf:true (I.event_args event) (I.event_ret event))
+            (Goo_c.property_index cl (I.name_of event))
+        ) (I.class_events cl);
+      List.iter (function
+          | I.Rel_collection col ->
+            let name = I.name_of col in
             let prefix' = sprint "%s_%s" cname' name in
             let prefix = sprint "%s_%s" cname name in
-            let target = class_name pkg (I.port_target p) in
+            let target = class_name pkg (I.port_target (I.collection_port col)) in
             print o "external %s_prev : [> %s] goo -> %s goo option = \"ml_%s_prev\""
               prefix' target target prefix;
             print o "external %s_next : [> %s] goo -> %s goo option = \"ml_%s_next\""
@@ -156,25 +119,22 @@ let print_ml_stubs pkg o =
               prefix' cname' target prefix;
             print o "external %s_parent : [> %s] goo -> %s goo option = \"ml_%s_parent\""
               prefix' target cname' prefix;
-          | Slot (name, p) ->
+          | I.Rel_slot sl ->
+            let name = I.name_of sl in
             let prefix' = sprint "%s_%s" cname' name in
             let prefix = sprint "%s_%s" cname name in
-            let target = class_name pkg (I.port_target p) in
+            let target = class_name pkg (I.port_target (I.slot_port sl)) in
             print o "external %s_get : [> %s] goo -> %s goo option = \"ml_%s_get\""
               prefix' cname' target prefix;
-          | Port (name, p) ->
+          | I.Rel_port pt ->
+            let name = I.name_of pt in
             let prefix' = sprint "%s_%s" cname' name in
             let prefix = sprint "%s_%s" cname name in
             print o "external %s_get : [> %s] goo -> %s goo option  = \"ml_%s_get\""
-              prefix' cname' (class_name pkg (I.port_source p)) prefix;
+              prefix' cname' (class_name pkg (I.port_source pt)) prefix;
             print o "external %s_detach : [> %s] goo -> unit  = \"ml_%s_detach\""
               prefix' cname' prefix;
-          | _ -> ()
-      in*)
-      (*List.iter
-        (fun x -> try f x with Not_an_ml_type -> ())
-        (I.class_fields c)*)
-      ()
+        ) (I.class_relations cl)
     ) (I.package_classes pkg)
 
 let n_args n =
@@ -274,58 +234,93 @@ let print_ml_c_stubs pkg o =
       o "}";
       o "";
     ) (I.package_enums pkg);
-  List.iter (fun func ->
-      let args = List.mapi (fun i (_name, typ) ->
-          match typ with
-          | Bool -> sprint "Bool_val(arg%d)" i
-          | Int -> sprint "Long_val(arg%d)" i
-          | Float -> sprint "Double_val(arg%d)" i
-          | String -> sprint "Goo_string_val(arg%d)" i
-          | Flag e -> sprint "%s_val(arg%d)" (I.name_of e) i
-          | Object cl ->
-            sprint "$Goo_val(arg%d, %s)" i (C.class_name cl)
-          | Object_option cl ->
-            sprint "$Goo_val_option(arg%d, %s)" i (C.class_name cl)
-          | Custom _ -> raise Not_an_ml_type
-        ) (I.func_args func)
-      in
-      if List.exists (function (Custom _) -> true | _ -> false) (I.func_ret func) then
-        raise Not_an_ml_type;
-      o "";
-      let argc = List.length args in
-      print o "value ml_%s(%s)" (C.func_symbol func) (n_args argc);
-      o "{";
-      caml_param o argc;
-      o "  GOO_ENTER_REGION;";
-      let args = String.concat ", " args in
-      let call = sprint "%s(%s)" (C.func_symbol func) args in
-      begin match I.func_ret func with
-        | [typ] ->
-          let inj = match typ with
-            | Bool -> "Val_bool"
-            | Int -> "Val_long"
-            | Float -> "caml_copy_double"
-            | String -> "Val_goo_string"
-            | Flag e -> sprint "Val_%s" (I.name_of e)
-            | Object _ -> "$Val_goo"
-            | Object_option _ -> "$Val_goo_option"
-            | Custom _ -> assert false
-          in
-          print o "  value goo_result = %s(%s);" inj call;
-          o "  GOO_LEAVE_REGION;";
-          o "  CAMLreturn(goo_result);";
-        | [] ->
-          print o "  %s;" call;
-          o "  GOO_LEAVE_REGION;";
-          o "  CAMLreturn(Val_unit);"
-        | _ -> failwith "Not supported"
-      end;
-      o "}";
-      if (argc > 5) then bytecode_proxy o (C.func_symbol func) argc
-    ) (I.package_funcs pkg);
+  let print_func func =
+    let args = List.mapi (fun i (_name, typ) ->
+        match typ with
+        | Bool -> sprint "Bool_val(arg%d)" i
+        | Int -> sprint "Long_val(arg%d)" i
+        | Float -> sprint "Double_val(arg%d)" i
+        | String -> sprint "Goo_string_val(arg%d)" i
+        | Flag e -> sprint "%s_val(arg%d)" (I.name_of e) i
+        | Object cl ->
+          sprint "$Goo_val(arg%d, %s)" i (C.class_name cl)
+        | Object_option cl ->
+          sprint "$Goo_val_option(arg%d, %s)" i (C.class_name cl)
+        | Custom _ -> raise Not_an_ml_type
+      ) (I.func_args func)
+    in
+    if List.exists (function (Custom _) -> true | _ -> false) (I.func_ret func) then
+      raise Not_an_ml_type;
+    begin match I.func_ret func with
+      | _ :: _ :: _ -> raise Not_an_ml_type (*failwith "Not supported"*)
+      | _ -> ()
+    end;
+    o "";
+    let argc = List.length args in
+    print o "value ml_%s(%s)" (C.func_symbol func) (n_args argc);
+    o "{";
+    caml_param o argc;
+    o "  GOO_ENTER_REGION;";
+    let args = String.concat ", " args in
+    let call = sprint "%s(%s)" (C.func_symbol func) args in
+    begin match I.func_ret func with
+      | [typ] ->
+        let inj = match typ with
+          | Bool -> "Val_bool"
+          | Int -> "Val_long"
+          | Float -> "caml_copy_double"
+          | String -> "Val_goo_string"
+          | Flag e -> sprint "Val_%s" (I.name_of e)
+          | Object _ -> "$Val_goo"
+          | Object_option _ -> "$Val_goo_option"
+          | Custom _ -> assert false
+        in
+        print o "  value goo_result = %s(%s);" inj call;
+        o "  GOO_LEAVE_REGION;";
+        o "  CAMLreturn(goo_result);";
+      | [] ->
+        print o "  %s;" call;
+        o "  GOO_LEAVE_REGION;";
+        o "  CAMLreturn(Val_unit);"
+      | _ -> assert false
+    end;
+    o "}";
+    if (argc > 5) then bytecode_proxy o (C.func_symbol func) argc
+  in
+  List.iter (fun x -> try print_func x with Not_an_ml_type -> ()) (I.package_funcs pkg);
   List.iter (fun c ->
       let cname = C.class_name c in
-      (*let f = function
+      List.iter (fun x -> try print_func x with Not_an_ml_type -> ()) (I.class_funcs c);
+      List.iter (fun event ->
+          o "";
+          let index = C.property_index c (I.name_of event) in
+          let cargs = ("self", Object c) :: I.event_args event in
+          print o "goo_bool event_%s_%s(%s)"
+            (C.class_name c) (I.name_of event) (C.params_str cargs);
+          o "{";
+          o "  CAMLparam0();";
+          print o "  CAMLlocalN(var, %d);" (1 + List.length cargs);
+          print o "  var[0] = $Val_goo_handler_helper(self, %d);" index;
+          o "  if (var[0] == Val_unit)";
+          o "    CAMLreturn(0);";
+          List.iteri (fun i (name, typ) ->
+              let inj = match typ with
+                | Bool -> "Val_bool"
+                | Int -> "Val_long"
+                | Float -> "caml_copy_double"
+                | String -> "Val_goo_string"
+                | Flag e -> sprint "Val_%s" (enum_name pkg e)
+                | Object _ -> "$Val_goo"
+                | Object_option _ -> "$Val_goo_option"
+                | Custom _ -> assert false
+              in
+              print o "  var[%d] = %s(%s);" (i + 1) inj name;
+            ) cargs;
+          print o "  CAMLreturn(Bool_val(caml_callbackN(Field(var[0],%d+2),%d,&var[1])));"
+            index (List.length cargs);
+          o "}";
+        ) (I.class_events c);
+    (*let f = function
           | Method (name, args, ret, _, static) ->
             let args = ("", Object c) :: args in
             let args = List.mapi (fun i (_name, typ) ->
@@ -379,52 +374,6 @@ let print_ml_c_stubs pkg o =
             end;
             o "}";
             if (argc > 5) then bytecode_proxy o (c_method_name c name) argc
-          (*| Variable (name, Cobject (cclass, opt)) ->
-            o "";
-            print o "value ml_%s_set_%s(value self, value arg)" cname name;
-            o "{";
-            o "  CAMLparam2(self, arg);";
-            o "  GOO_ENTER_REGION;";
-            print o "  %s *obj = $Goo_val(self, %s);" cname cname;
-            print o "  $send(obj,set_%s)(obj, $Goo_val(arg, %s));" name (c_class_name cclass);
-            o "  GOO_LEAVE_REGION;";
-            print o "  CAMLreturn(Val_unit);";
-            o "}";
-            o "";
-            print o "value ml_%s_unset_%s(value self)" cname name;
-            o "{";
-            o "  CAMLparam1(self);";
-            o "  GOO_ENTER_REGION;";
-            print o "  %s *obj = $Goo_val(self, %s);" cname cname;
-            print o "  $send(obj,set_%s)(obj, NULL);" name;
-            o "  GOO_LEAVE_REGION;";
-            print o "  CAMLreturn(Val_unit);";
-            o "}";*)
-          | Constructor (name, args, _) ->
-            o "";
-            let args = List.mapi (fun i (_name, typ) ->
-                match typ with
-                | Bool -> sprint "Bool_val(arg%d)" i
-                | Int -> sprint "Long_val(arg%d)" i
-                | Float -> sprint "Double_val(arg%d)" i
-                | String -> sprint "Goo_string_val(arg%d)" i
-                | Enum e -> sprint "%s_val(arg%d)" (enum_name e) i
-                | Cobject (cl, opt) ->
-                  let opt = if opt then "_option" else "" in
-                  sprint "$Goo_val%s(arg%d, %s)" opt i (c_class_name cl)
-                | Custom _ -> raise Not_an_ml_type
-              ) args
-            in
-            print o "value ml_%s_%s(%s)" cname name (n_args (List.length args));
-            o "{";
-            caml_param o (List.length args);
-            o "  GOO_ENTER_REGION;";
-            let args = String.concat ", " args in
-            let call = sprint "%s_%s(%s)" cname name args in
-            print o "  value goo_result = $Val_goo(%s);" call;
-            o "  GOO_LEAVE_REGION;";
-            print o "  CAMLreturn(goo_result);";
-            o "}";
           | Event (name, args) ->
             o "";
             let cargs = ("self", cobject c) :: args in

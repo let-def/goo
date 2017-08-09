@@ -45,7 +45,7 @@ let window = classe ui "window" ~extend:control
 let () =
   self_meth window [string] "title" [];
   self_meth window [] "set_title" [arg "title" string];
-  self_meth window [int; int] "content_size" [];
+  (*self_meth window [int; int] "content_size" [];*)
   self_meth window [] "set_content_size" [arg "width" int; arg "height" int];
   prop window "fullscreen";
   event window [] "content_size_changed" [];
@@ -238,7 +238,7 @@ let () =
 let color_button = classe ui "color_button" ~extend:control
 
 let () =
-  self_meth color_button [float; float; float; float] "get_color" [];
+  (*self_meth color_button [float; float; float; float] "get_color" [];*)
   self_meth color_button [] "set_color" [arg "r" float; arg "g" float; arg "b" float; arg "a" float];
   event color_button [] "changed" [];
   constructor color_button "new" []

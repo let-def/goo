@@ -2,14 +2,11 @@
 type -'a goo
 type goo_object = [`goo_object]
 
-type -'a events
-type 'a handler = [`Handler of 'a events]
-
-type ('self,'events) delegate = 'self goo -> 'events -> bool
-  constraint 'self = [> 'events handler]
-
-let set_handler (goo : 'self goo) (handler : ('self, _) delegate) =
-  Obj.set_field (Obj.repr goo) 1 (Obj.repr handler)
+type (+'self, 'a) event = int
+let set_event (obj : 'self goo) (event : ('self, 'a) event) (fn : 'self goo -> 'a) =
+  Obj.set_field (Obj.repr obj) (event + 2) (Obj.repr fn)
+let unset_event (obj : 'self goo) (event : ('self, 'a) event) =
+  Obj.set_field (Obj.repr obj) (event + 2) (Obj.repr ())
 
 (* Weak table for referencing OCaml objects from C *)
 external set_handle : 'a goo -> int -> unit = "ml_goo_set_handle" [@@noalloc]
@@ -21,7 +18,8 @@ let () =
   let alloc x = Goo_ref.wref table x in
   let deref x = Goo_ref.wderef table x in
   Callback.register "ml_goo_alloc" alloc;
-  Callback.register "ml_goo_deref" deref
+  Callback.register "ml_goo_deref" deref;
+  Callback.register "ml_goo_string" ""
 
 (* Primitive comparison, hashing and equality of Goo objects.
 
@@ -64,14 +62,3 @@ let release (goo : _ goo) =
    This casting routine won't break safety and runs in O(1). *)
 type 'a witness
 external cast : _ goo -> 'a witness -> 'a goo option = "ml_goo_cast"
-
-(* Encoding for returning values to C-code from event.
-   Maybe a lighter / more natural encoding is possible, but this one behaves
-   well with inference and polymorphic variants... *)
-type -'a return = Obj.t ref
-
-external give : 'a return -> 'a -> unit = "%setfield0"
-
-let () =
-  let return_placeholder = Obj.repr (ref ()) in
-  Callback.register "ml_goo_return_placeholder" return_placeholder

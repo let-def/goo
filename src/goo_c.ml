@@ -49,6 +49,8 @@ let number_of_properties cl0 =
           | (_, (Object _ | Object_option _)) -> incr count
           | _ -> ())
         (I.class_variables cl);
+      List.iter (fun _event -> incr count)
+        (I.class_events cl);
       List.iter (function
           | I.Rel_collection _ | I.Rel_slot _ -> incr count
           | I.Rel_port _ -> count := !count + 2)
@@ -65,6 +67,10 @@ let property_index cl0 name =
             incr count
           | _ -> ())
         (I.class_variables cl);
+      List.iter (fun event ->
+          if I.name_of event = name then raise Exit
+          else incr count)
+        (I.class_events cl);
       List.iter (function
           | I.Rel_collection x when I.name_of x = name -> raise Exit
           | I.Rel_slot x when I.name_of x = name -> raise Exit
@@ -205,8 +211,10 @@ let print_class_fields o cl_main =
   o ""
 
 let print_class_method_prototypes o cl =
-  List.iter
-    (fun func -> print_function o func true None)
+  List.iter (fun func ->
+      print_function o func true None;
+      print o "#define static_%s %s" (func_symbol func) (func_symbol func)
+    )
     (I.class_funcs cl)
   (*List.iter (function
       | Method (name, args, ret, _, _) ->
@@ -369,13 +377,13 @@ let print_class_impl_h cl o =
   iter_ancestors ~and_self:true cl
     (fun cl ->
        List.iter (fun event ->
+           let args = arg "self" (Object (I.event_classe event)) :: I.event_args event in
            print o "goo_bool event_%s_%s(%s);"
-             (class_name cl) (I.name_of event) (params_str (I.event_args event));
+             (class_name cl) (I.name_of event) (params_str args);
            print o "#define $static_event_%s event_%s_%s"
              (I.name_of event) (class_name cl) (I.name_of event);
            print_proxy o
-             (sprint "event_%s_%s" (class_name cl) (I.name_of event);)
-             (I.event_args event)
+             (sprint "event_%s_%s" (class_name cl) (I.name_of event)) args
          ) (I.class_events cl)
     );
   (*let print_field cl = function

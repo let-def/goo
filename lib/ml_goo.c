@@ -87,8 +87,9 @@ static value Val_goo_alloc(goo_object *goo)
   *root = caml_alloc_custom(&goo_custom_ops, sizeof(goo_object *), 0, 1);
   *(goo_object**)(Data_custom_val(*root)) = goo;
 
-  block = caml_alloc_tuple(2 + $number_of_properties(goo));
+  block = caml_alloc(2 + $number_of_properties(goo), Object_tag);
   Field(block, 0) = *root;
+  Field(block, 1) = ((intnat)goo)|1;
   *root = block;
 
   static value * alloc_id = NULL;
@@ -129,12 +130,12 @@ value Val_goo_option(goo_object *goo)
     return Val_some(Val_goo(goo));
 }
 
-value Val_goo_handler_helper(goo_object *goo)
+value Val_goo_handler_helper(goo_object *goo, unsigned int prop_id)
 {
   if ($field(goo, handle_) == NULL)
     return Val_unit;
   value inst = Val_goo(goo);
-  if (Field(inst, 1) == Val_unit)
+  if (Field(inst, 2 + prop_id) == Val_unit)
     return Val_unit;
   return inst;
 }

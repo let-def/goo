@@ -28,8 +28,8 @@ value Val_goo(goo_object *goo);
 value Val_goo_option(goo_object *goo);
 #define $Val_goo_option(goo) Val_goo_option($as(goo, goo_object))
 
-value Val_goo_handler_helper(goo_object *goo);
-#define $Val_goo_handler_helper(goo) Val_goo_handler_helper($as(goo, goo_object))
+value Val_goo_handler_helper(goo_object *goo, unsigned int prop_id);
+#define $Val_goo_handler_helper(goo, prop) Val_goo_handler_helper($as(goo, goo_object), prop)
 
 void ml_goo_set_property(goo_object *goo, unsigned int prop_id, goo_object *val);
 #define $ml_goo_set_property(goo, prop, val) \

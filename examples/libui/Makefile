@@ -10,7 +10,7 @@ ML_SOURCES = libui.ml controlgallery.ml
 all: test
 
 test: $(C_OBJECTS) $(ML_SOURCES)
-	ocamlfind opt -package goo-lib -linkpkg -cclib "$(LDFLAGS)" -o $@ -g  -I . $^
+	ocamlfind opt -package goo-lib -linkpkg -cclib "$(LDFLAGS)" -o $@ -g $^
 
 controlgallery.ml $(C_SOURCES): libui.ml libui.h
 

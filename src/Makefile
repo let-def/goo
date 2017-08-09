@@ -21,9 +21,9 @@ reinstall:
 SOURCES=goo_model.mli goo_model.ml goo_c.ml goo_ml.ml
 
 goo_gen.cma: $(SOURCES)
-	$(OCAMLC) -c $(SOURCES)
+	$(OCAMLC) -g -c $(SOURCES)
 	$(OCAMLC) -o goo_gen.cma -a goo_model.cmo goo_c.cmo goo_ml.cmo
 
 goo_gen.cmxa: $(SOURCES)
-	$(OCAMLOPT) -c $(SOURCES)
+	$(OCAMLOPT) -g -c $(SOURCES)
 	$(OCAMLOPT) -o goo_gen.cmxa -a goo_c.cmx goo_ml.cmx
