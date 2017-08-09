@@ -9,6 +9,26 @@ let is_abstract, set_concrete =
   (fun cl -> not (I.Table.mem table cl)),
   (fun cl -> I.Table.add table cl ())
 
+let is_dynamic, set_dynamic =
+  let table : (func, unit) I.Table.table = I.Table.create () in
+  let assert_method func = match I.func_kind func with
+    | I.Fn_class cl ->
+      begin match I.func_args func with
+        | ("self", Object cl') :: _ when cl = cl' -> ()
+        | _ ->
+          Printf.ksprintf failwith
+            "Goo_c.dynamic: %s.%s to be a dynamic method, first argument should be a receiver 'self' of class %s"
+            (class_name cl) (I.name_of func) (class_name cl)
+      end
+    | I.Fn_package pkg ->
+      Printf.ksprintf failwith "Goo_c.dynamic: %s.%s is not a class method"
+        (I.name_of pkg) (I.name_of func)
+  in
+  (fun func -> I.Table.mem table func),
+  (fun func -> assert_method func; I.Table.add table func ())
+
+let () = set_dynamic Goo_model.goo_destroy
+
 let package_declare, package_get_declarations =
   let table : (package, string list ref) I.Table.table = I.Table.create () in
   (fun pkg decls -> match I.Table.find table pkg with
@@ -167,17 +187,12 @@ let print_class_methods o cl_main =
   print o "  GOO_CLASS_METHODS_INIT(%s);" cname;
   iter_ancestors ~and_self:true cl_main
     (fun cl ->
-       (* TODO: Dynamic dispatch
-        List.iter (fun func ->
-           match I.func_kind func with
-           | I.Fn_dynamic_method cl ->
+       List.iter (fun func ->
+           if is_dynamic func then
              print o "  %s( *const %s ) (%s);"
                (func_ret_str func) (I.name_of func)
                (func_params_str ~at_class:cl_main func)
-           | _ -> ()
          ) (I.class_funcs cl)
-       *)
-       ()
     );
   o "};";
   o ""
@@ -213,7 +228,11 @@ let print_class_fields o cl_main =
 let print_class_method_prototypes o cl =
   List.iter (fun func ->
       print_function o func true None;
-      print o "#define static_%s %s" (func_symbol func) (func_symbol func)
+      if is_dynamic func then
+        print o "%sstatic_%s(%s);"
+          (func_ret_str func) (func_symbol func) (func_params_str func)
+      else
+        print o "#define static_%s %s" (func_symbol func) (func_symbol func)
     )
     (I.class_funcs cl)
   (*List.iter (function
@@ -309,12 +328,24 @@ let print_class_impl_h cl o =
   o "";
   o "/* Internal definitions */";
   o "";
+  iter_ancestors cl (fun cl ->
+      List.iter
+        (fun func ->
+           if is_dynamic func then
+             print o "#define self_%s %s" (I.name_of func) (func_symbol func)
+        )
+        (I.class_funcs cl)
+    );
   List.iter
     (fun func ->
-       print o "#define static_self_%s self_%s" (I.name_of func) (I.name_of func);
-       print o "#define $self_%s $%s" (I.name_of func) (func_symbol func);
        let ret_type = func_ret_str func in
        let ret_call = if func_ret func = None then "" else "return " in
+       print o "#define static_self_%s self_%s" (I.name_of func) (I.name_of func);
+       print o "#define $self_%s $%s" (I.name_of func) (func_symbol func);
+       if is_dynamic func then
+         print o "%s%s(%s) { %s$send(self, %s)(%s); }"
+           ret_type (func_symbol func) (func_params_str func)
+           ret_call (I.name_of func) (func_args_str func);
        print o "%sstatic_%s(%s) { %sself_%s(%s); }"
          ret_type (func_symbol func) (func_params_str func)
          ret_call (I.name_of func) (func_args_str func)
@@ -417,10 +448,11 @@ let print_class_impl_h cl o =
     print o "  GOO_INTERNAL_TABLE_INIT(%s)," (class_name cl);
     iter_ancestors ~and_self:true cl
       (fun cl ->
-         (*List.iter
-           (fun func -> print o "  GOO_INTERNAL_TABLE_METHOD(%s)," (I.name_of func))
-           (I.class_funcs cl)*)
-         ()
+         List.iter
+           (fun func ->
+              if is_dynamic func then
+                print o "  GOO_INTERNAL_TABLE_METHOD(%s)," (I.name_of func))
+           (I.class_funcs cl)
       );
     o "};";
   )

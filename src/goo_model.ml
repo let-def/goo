@@ -292,7 +292,7 @@ let seal_classe cl =
 let goo = package "goo"
 
 let goo_object = classe goo None "object"
-let goo_destroy = meth' goo_object [] "destroy" []
+let goo_destroy = meth' goo_object [] "destroy" ["self", Object goo_object]
 
 let () = (
   seal_package goo;

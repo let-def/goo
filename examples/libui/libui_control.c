@@ -36,8 +36,8 @@ $method goo_bool self_is_toplevel(libui_control *self)
   return uiControlToplevel(WIDGET);
 }
 
-//$method void self_destroy(libui_control *self)
-//{
-//  uiControlDestroy(WIDGET);
-//  $static(super, destroy)(self);
-//}
+$method void self_destroy(libui_control *self)
+{
+  uiControlDestroy(WIDGET);
+  $static(super, destroy)(self);
+}
