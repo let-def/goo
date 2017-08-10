@@ -27,6 +27,17 @@ let is_dynamic, set_dynamic =
   (fun func -> I.Table.mem table func),
   (fun func -> assert_method func; I.Table.add table func ())
 
+let override, overriden =
+  let table : (classe, func list ref) I.Table.table = I.Table.create () in
+  let get cl =
+    try I.Table.find table cl with Not_found ->
+      let l = ref [] in
+      I.Table.add table cl l;
+      l
+  in
+  (fun cl func -> let l = get cl in l := func :: !l),
+  (fun cl -> !(get cl))
+
 let () = set_dynamic Goo_model.goo_destroy
 
 let package_declare, package_get_declarations =
