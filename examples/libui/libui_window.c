@@ -76,7 +76,7 @@ $method void self_child_connect(libui_window *self, libui_control *child)
   uiWindowSetChild(WIDGET, $field($field(self, child), control));
 }
 
-void libui_window_on_child_disconnect(libui_window *self, libui_control *object)
+$method void self_on_child_disconnect(libui_window *self, libui_control *object)
 {
   uiWindowSetChild(WIDGET, NULL);
 }

@@ -78,7 +78,6 @@ and classe_desc = {
   cl_package: package;
   cl_extend: classe option;
   cl_funcs: func sealed_list;
-  cl_variables: (name * ctype) sealed_list;
   cl_events : event sealed_list;
   cl_relations : classe_relation sealed_list;
 }
@@ -164,7 +163,6 @@ let classe cl_package cl_extend name =
       cl_package;
       cl_extend;
       cl_funcs = sealed_list seal;
-      cl_variables = sealed_list seal;
       cl_relations = sealed_list seal;
       cl_events = sealed_list seal;
     } in
@@ -243,11 +241,6 @@ let func_args_at_class func classe =
   | ("self", Object cl) :: rest when compare_classe cl classe = `Lt  ->
     ("self", Object classe) :: rest
   | args -> args
-
-let variable classe name typ =
-  append (prj classe).cl_variables (name, typ)
-    "adding variable %s to class %s which is already sealed"
-    name (name_of classe)
 
 let port pt_target name pt_source =
   let port = inj name { pt_target; pt_source } in
@@ -329,7 +322,6 @@ module Introspect = struct
     in
     aux 0 cl
   let class_funcs cl = read (prj cl).cl_funcs
-  let class_variables cl = read (prj cl).cl_variables
   let class_events cl = read (prj cl).cl_events
 
   type class_relation = classe_relation =

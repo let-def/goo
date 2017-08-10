@@ -7,6 +7,9 @@ let ui = package "libui"
 let self_meth cl ret name args =
   meth cl ret name (arg "self" (Object cl) :: args)
 
+let self_meth' cl ret name args =
+  meth' cl ret name (arg "self" (Object cl) :: args)
+
 let constructor cl name args =
   Goo_c.set_concrete cl;
   meth cl [Object cl] name args
@@ -27,8 +30,8 @@ let () =
 let control = classe ui "control"
 
 let () =
-  (*override "destroy";*)
-  variable control "control" (Custom "uiControl *");
+  Goo_c.override control goo_destroy;
+  Goo_c.instance_variable control "control" (Custom "uiControl *");
   (* uintptr_t uiControlHandle(uiControl * ); *)
   self_meth control [bool] "is_toplevel" [];
   self_meth control [bool] "is_visible" [];
@@ -51,9 +54,10 @@ let () =
   event window [] "content_size_changed" [];
   event window [] "closing" [];
   prop window "borderless";
-  slot window "child" control_parent;
+  Goo_c.on_slot_disconnect
+    (slot' window "child" control_parent)
+    (self_meth' window [] "on_child_disconnect" ["object", Object control]);
   self_meth window [] "child_connect" [arg "val" (Object control)];
-  (*override "on_child_disconnect";*)
   prop window "margined";
   constructor window "new"
         [arg "title" string; arg "width" int; arg "height" int; arg "has_menubar" bool]
@@ -118,9 +122,10 @@ let group = classe ui "group" ~extend:control
 let () =
   self_meth group [string] "title" [];
   self_meth group [] "set_title" [arg "title" string];
-  slot group "child" control_parent;
   self_meth group [] "child_connect" [arg "val" (Object control)];
-  (*override "on_child_disconnect";*)
+  Goo_c.on_slot_disconnect
+    (slot' group "child" control_parent)
+    (self_meth' group [] "on_child_disconnect" ["object", Object control]);
   prop group "margined";
   constructor group "new" [arg "title" string]
 
@@ -202,7 +207,7 @@ let menu = classe ui "menu"
 let menu_item = classe ui "menu_item"
 
 let () =
-  variable menu_item "control" (Custom "uiMenuItem *");
+  Goo_c.instance_variable menu_item "control" (Custom "uiMenuItem *");
   self_meth menu_item [] "enable" [];
   self_meth menu_item [] "disable" [];
   event menu_item [] "clicked" [];
@@ -212,7 +217,7 @@ let () =
 let menu_item_parent = port menu_item "parent" menu
 
 let () =
-  variable menu "control" (Custom "uiMenu *");
+  Goo_c.instance_variable menu "control" (Custom "uiMenu *");
   collection menu "items" menu_item_parent;
   self_meth menu [Object menu_item] "append_item" [arg "name" string];
   self_meth menu [Object menu_item] "append_check_item" [arg "name" string];

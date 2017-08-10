@@ -215,7 +215,7 @@ typedef struct { const int depth; const int properties; const goo_class_witness 
   static const goo_##name##_class goo_##name##_class_ =
 
 #define GOO_INTERNAL_TABLE_INIT(name) .display_ = &goo_##name##_display
-#define GOO_INTERNAL_TABLE_METHOD(name) .name = (void*)self_##name
+#define GOO_INTERNAL_TABLE_METHOD(name) .name = (void*)static_self_##name
 
 #define GOO_INTERNAL_ALLOC(name)                                              \
   static name *goo_self_alloc(void)                                           \
@@ -304,6 +304,8 @@ void goo_object_init(goo_object *);
 
 void goo_object_destroy(goo_object *);
 #define $goo_object_destroy(self) goo_object_destroy($as(self,goo_object))
+#define static_goo_object_destroy goo_object_destroy
+#define $static_goo_object_destroy $goo_object_destroy
 
 /* Safe casting operations
  * ============================

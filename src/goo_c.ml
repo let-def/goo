@@ -9,6 +9,14 @@ let is_abstract, set_concrete =
   (fun cl -> not (I.Table.mem table cl)),
   (fun cl -> I.Table.add table cl ())
 
+let get_list table key =
+  try I.Table.find table key with Not_found ->
+    let l = ref [] in
+    I.Table.add table key l;
+    l
+
+let add_to_list l v = l := v :: !l
+
 let is_dynamic, set_dynamic =
   let table : (func, unit) I.Table.table = I.Table.create () in
   let assert_method func = match I.func_kind func with
@@ -27,16 +35,55 @@ let is_dynamic, set_dynamic =
   (fun func -> I.Table.mem table func),
   (fun func -> assert_method func; I.Table.add table func ())
 
+type variable_desc = { v_type : ctype }
+type variable = variable_desc id
+
+let instance_variables, instance_variable =
+  let table : (classe, variable list ref) I.Table.table = I.Table.create () in
+  (fun cl -> List.rev !(get_list table cl)),
+  (fun cl name v_type ->
+     add_to_list (get_list table cl) (Id.inj name { v_type }))
+
 let override, overriden =
   let table : (classe, func list ref) I.Table.table = I.Table.create () in
-  let get cl =
-    try I.Table.find table cl with Not_found ->
-      let l = ref [] in
-      I.Table.add table cl l;
-      l
+  (fun cl func -> add_to_list (get_list table cl) func),
+  (fun cl -> List.rev !(get_list table cl))
+
+let get_disconnect_callback, add_disconnect_callback =
+  let table : (I.class_relation, func) Hashtbl.t = Hashtbl.create 7 in
+  (fun rel -> match Hashtbl.find table rel with x -> Some x | exception Not_found -> None),
+  (fun rel func -> not (Hashtbl.mem table rel) && (Hashtbl.add table rel func; true))
+
+let on_port_disconnect pt cb =
+  if not (add_disconnect_callback (I.Rel_port pt) cb) then
+    Printf.ksprintf failwith
+      "port %s already has a disconnect callback registered"
+      (I.name_of pt)
+
+let on_slot_disconnect pt cb =
+  if not (add_disconnect_callback (I.Rel_slot pt) cb) then
+    Printf.ksprintf failwith
+      "port %s already has a disconnect callback registered"
+      (I.name_of pt)
+
+let on_collection_disconnect pt cb =
+  if not (add_disconnect_callback (I.Rel_collection pt) cb) then
+    Printf.ksprintf failwith
+      "port %s already has a disconnect callback registered"
+      (I.name_of pt)
+
+let rec lookup_override cl func =
+  let parent = match I.class_extend cl with
+    | Some cl -> lookup_override cl func
+    | None ->
+      match I.func_kind func with
+      | I.Fn_class cl -> [cl]
+      | _ -> assert false
   in
-  (fun cl func -> let l = get cl in l := func :: !l),
-  (fun cl -> !(get cl))
+  if List.mem func (overriden cl) then
+    cl :: parent
+  else
+    parent
 
 let () = set_dynamic Goo_model.goo_destroy
 
@@ -76,10 +123,11 @@ let iter_ancestors ?(and_self=false) cl f =
 let number_of_properties cl0 =
   let count = ref 0 in
   iter_ancestors ~and_self:true cl0 (fun cl ->
-      List.iter (function
-          | (_, (Object _ | Object_option _)) -> incr count
+      List.iter (fun var ->
+          match (Id.prj var ).v_type with
+          | Object _ | Object_option _ -> incr count
           | _ -> ())
-        (I.class_variables cl);
+        (instance_variables cl);
       List.iter (fun _event -> incr count)
         (I.class_events cl);
       List.iter (function
@@ -92,12 +140,13 @@ let number_of_properties cl0 =
 let property_index cl0 name =
   let count = ref 0 in
   match iter_ancestors ~and_self:true cl0 (fun cl ->
-      List.iter (function
-          | (name', (Object _ | Object_option _)) ->
-            if name = name' then raise Exit;
+      List.iter (fun var ->
+          match (Id.prj var).v_type with
+          | Object _ | Object_option _ ->
+            if I.name_of var = name then raise Exit;
             incr count
           | _ -> ())
-        (I.class_variables cl);
+        (instance_variables  cl);
       List.iter (fun event ->
           if I.name_of event = name then raise Exit
           else incr count)
@@ -114,11 +163,11 @@ let property_index cl0 name =
   | () -> raise Not_found
   | exception Exit -> !count
 
-let func_symbol func =
+let func_symbol ?at_class func =
   let prefix =
-    match I.func_kind func with
-    | I.Fn_class cl -> class_name cl
-    | I.Fn_package pkg -> I.name_of pkg
+    match at_class, I.func_kind func with
+    | Some cl, _ | None, I.Fn_class cl -> class_name cl
+    | None, I.Fn_package pkg -> I.name_of pkg
   in
   prefix ^ "_" ^ I.name_of func
 
@@ -215,13 +264,14 @@ let print_class_fields o cl_main =
   print o "  GOO_CLASS_FIELDS_INIT(%s);" cname;
   iter_ancestors ~and_self:true cl_main
     (fun cl ->
-       List.iter (fun (name, typ) ->
+       List.iter (fun var ->
+           let name = I.name_of var and typ = (Id.prj var).v_type in
            let name = match typ with
              | Object _ | Object_option _ -> "const " ^ name
              | _ -> name
            in
            print o "  %s;" (ctype name typ)
-         ) (I.class_variables cl);
+         ) (instance_variables  cl);
        List.iter (function
            | I.Rel_collection col ->
              print o "  goo_collection %s;" (I.name_of col)
@@ -237,45 +287,15 @@ let print_class_fields o cl_main =
   o ""
 
 let print_class_method_prototypes o cl =
+  List.iter (fun func -> print_function o func true None) (I.class_funcs cl);
   List.iter (fun func ->
-      print_function o func true None;
       if is_dynamic func then
         print o "%sstatic_%s(%s);"
-          (func_ret_str func) (func_symbol func) (func_params_str func)
+          (func_ret_str func) (func_symbol ~at_class:cl func) (func_params_str ~at_class:cl func)
       else
-        print o "#define static_%s %s" (func_symbol func) (func_symbol func)
+        print o "#define static_%s %s" (func_symbol ~at_class:cl func) (func_symbol ~at_class:cl func)
     )
-    (I.class_funcs cl)
-  (*List.iter (function
-      | Method (name, args, ret, _, _) ->
-        print_method o ret cl name args true None;
-        o "";
-      | Variable (name, (Cobject _ as typ)) ->
-        print_method o None cl ("set_" ^ name) ["val", typ] true None;
-        o "";
-      | Event (name, args) ->
-        print_method o (Some bool) cl ("on_" ^ name) args true None;
-        o "";
-      | Override (name, _) ->
-        let ret, args = lookup_method name cl in
-        print_method o ret cl name args true None;
-        o "";
-      | Constructor (name, args, _) ->
-        print_function o (Some (cobject cl)) (method_name cl name) args true None;
-        o "";
-      | Collection (name, port) ->
-        let target = cobject (I.port_target port) in
-        print_method o None cl (on_ name "disconnect") ["object", target] true None;
-        o "";
-      | Slot (name, port) ->
-        let target = cobject (I.port_target port) in
-        print_method o None cl (on_ name "disconnect") ["object", target] true None;
-        o "";
-      | Port (name, _) ->
-        print_method o None cl (on_ name "disconnect") [] true None;
-        o "";
-      | _ -> ()
-    ) (I.class_fields cl)*)
+    (overriden cl @ I.class_funcs cl)
 
 let print_package_h pkg o =
   o "#include \"goo_system.h\"";
@@ -331,6 +351,19 @@ let print_class_impl_h cl o =
   o "";
   o "/* Methods to implement */";
   o "";
+  (* Overriden methods *)
+  iter_ancestors cl (fun cl' ->
+      List.iter
+        (fun func ->
+           match lookup_override cl func with
+           | cl0 :: _ when cl0 = cl ->
+             print o "$method %sself_%s(%s);"
+               (func_ret_str func) (I.name_of func) (func_params_str ~at_class:cl func)
+           | _ -> ()
+        )
+        (I.class_funcs cl')
+    );
+  (* New methods *)
   List.iter
     (fun func ->
        print o "$method %sself_%s(%s);"
@@ -339,20 +372,40 @@ let print_class_impl_h cl o =
   o "";
   o "/* Internal definitions */";
   o "";
-  iter_ancestors cl (fun cl ->
+  iter_ancestors cl (fun cl' ->
       List.iter
         (fun func ->
-           if is_dynamic func then
-             print o "#define self_%s %s" (I.name_of func) (func_symbol func)
+           let overrides = lookup_override cl func in
+           let next_cl, next_prefix =
+             match overrides with
+             | cl0 :: cl1 :: _ when cl0 = cl ->
+               let sym = func_symbol ~at_class:cl func in
+               let ret_type = func_ret_str func in
+               let ret_call = if func_ret func = None then "" else "return " in
+               let params = func_params_str ~at_class:cl func in
+               let args = func_args_str ~at_class:cl func in
+               print o "#define static_self_%s self_%s" (I.name_of func) (I.name_of func);
+               print o "#define $static_self_%s $%s" (I.name_of func) sym;
+               print o "%sstatic_%s(%s) { %sself_%s(%s); }"
+                 ret_type sym params ret_call (I.name_of func) args;
+               cl1, "super"
+             | cl0 :: _ -> cl0, "self"
+             | [] -> assert false
+           in
+           let sym = func_symbol ~at_class:next_cl func in
+           print o "#define static_%s_%s static_%s"
+             next_prefix (I.name_of func) sym;
+           print o "#define $static_%s_%s $%s"
+             next_prefix (I.name_of func) sym
         )
-        (I.class_funcs cl)
+        (I.class_funcs cl')
     );
   List.iter
     (fun func ->
        let ret_type = func_ret_str func in
        let ret_call = if func_ret func = None then "" else "return " in
        print o "#define static_self_%s self_%s" (I.name_of func) (I.name_of func);
-       print o "#define $self_%s $%s" (I.name_of func) (func_symbol func);
+       print o "#define $static_self_%s $%s" (I.name_of func) (func_symbol func);
        if is_dynamic func then
          print o "%s%s(%s) { %s$send(self, %s)(%s); }"
            ret_type (func_symbol func) (func_params_str func)
@@ -367,14 +420,18 @@ let print_class_impl_h cl o =
   o "";
   let rel_name_and_index cl id =
     (class_name cl, I.name_of id, property_index cl (I.name_of id)) in
-  List.iter (function
+  List.iter (fun rel ->
+      let cb = get_disconnect_callback rel in
+      match rel with
       | I.Rel_collection col ->
         let pt = I.collection_port col in
         let target = I.port_target pt in
         let src_cl, src_name, src_id = rel_name_and_index cl col in
         let dst_cl, dst_name, dst_id = rel_name_and_index target pt in
-        print o "#define $port_%s_disconnect (void(*)(%s *, %s *))NULL"
-          src_name src_cl dst_cl;
+        print o "#define $port_%s_disconnect %s" src_name
+          (match cb with
+           | None -> sprint "(void(*)(%s *, %s *))NULL" src_cl dst_cl
+           | Some func -> func_symbol func);
         print o "GOO_INTERNAL_COLLECTION(%s, %s, %d, %s, %s, %d);"
           src_cl src_name src_id
           dst_cl dst_name dst_id;
@@ -385,16 +442,20 @@ let print_class_impl_h cl o =
         let target = I.port_target pt in
         let src_cl, src_name, src_id = rel_name_and_index cl sl in
         let dst_cl, dst_name, dst_id = rel_name_and_index target pt in
-        (* $send(self, on_##source_field##_disconnect) *)
-        print o "#define $port_%s_disconnect (void(*)(%s *, %s *))NULL"
-          src_name src_cl dst_cl;
+        print o "#define $port_%s_disconnect %s" src_name
+          (match cb with
+           | None -> sprint "(void(*)(%s *, %s *))NULL" src_cl dst_cl
+           | Some func -> func_symbol func);
         print o "GOO_INTERNAL_SLOT(%s, %s, %d, %s, %s, %d);"
           src_cl src_name src_id
           dst_cl dst_name dst_id;
         print_proxy o ("static_connect_" ^ I.name_of sl)
           ["self", Object cl; "item", Object target]
       | I.Rel_port pt ->
-        print o "#define $port_%s_disconnect(object) (void)0" (I.name_of pt);
+        print o "#define $port_%s_disconnect(object) %s(object)" (I.name_of pt)
+          (match cb with
+           | None -> "(void)"
+           | Some func -> func_symbol func);
         print o "GOO_INTERNAL_PORT(%s, %s, %s);"
           (class_name (I.port_target pt)) (I.name_of pt)
           (class_name (I.port_source pt))
@@ -402,8 +463,10 @@ let print_class_impl_h cl o =
   o "";
   o "/* Heap variable setters */";
   o "";
-  List.iter (function
-      | (name, (Object arg | Object_option arg as typ)) ->
+  List.iter (fun var ->
+      let name = I.name_of var and typ = (Id.prj var).v_type in
+      match typ with
+      | Object arg | Object_option arg ->
         print o "static inline void static_set_%s(%s *self, %s *v)" name
           (class_name cl) (class_name arg);
         o "{";
@@ -412,7 +475,7 @@ let print_class_impl_h cl o =
         o "}";
         print_proxy o ("static_set_" ^ name) ["self", Object cl; "v", typ]
       | _ -> ()
-    ) (I.class_variables cl);
+    ) (instance_variables cl);
   o "";
   o "/* Events */";
   o "";

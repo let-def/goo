@@ -1,7 +1,13 @@
 (* An identifier name, must be a valid OCaml and C identifier *)
 type name = string
 
-type _ id
+module Id : sig
+  type 'a t
+  val inj : name -> 'a -> 'a t
+  val prj : 'a t -> 'a
+  val name : 'a t -> name
+end
+type 'a id = 'a Id.t
 type void
 val forget : _ id -> void id
 
@@ -67,8 +73,6 @@ val func : package -> ctype list -> name -> arg list -> unit
 val meth : classe -> ctype list -> name -> arg list -> unit
 val event : classe -> ctype list -> name -> arg list -> unit
 
-val variable : classe -> name -> ctype -> unit
-
 type port = port_desc id
 type collection = collection_desc id
 type slot = slot_desc id
@@ -103,7 +107,6 @@ module Introspect : sig
   val class_extend    : classe -> classe option
   val class_depth     : classe -> int
   val class_funcs     : classe -> func list
-  val class_variables : classe -> (name * ctype) list
   val class_events    : classe -> event list
 
   type class_relation =
