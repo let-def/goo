@@ -17,5 +17,10 @@ void *goo_dyncast_(goo_object *object, const goo_class_witness *witness)
 
 void goo_object_destroy(goo_object *self)
 {
+  $send(self, destroy)(self);
+}
+
+void static_goo_object_destroy(goo_object *self)
+{
   free(self);
 }

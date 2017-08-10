@@ -25,8 +25,8 @@ For quick'n'dirty results, a Goo [description](examples/libui/desc.ml) of [libui
 
 # TODO
 
-- region management
-- multiple return values
+- implement multiple return values
+- should exception management be part of event definitions ? (... yes)
 - ctypes integration
 
 # Future work

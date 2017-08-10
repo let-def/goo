@@ -240,6 +240,7 @@ GOO_CLASS_DECLARE(goo_object);
 GOO_CLASS_METHODS(goo_object)
 {
   GOO_CLASS_METHODS_INIT(goo_object);
+  void (* const destroy)(goo_object *self);
 };
 
 GOO_CLASS_FIELDS(goo_object)
@@ -303,9 +304,9 @@ void goo_object_init(goo_object *);
 #define $goo_object_init(self) goo_object_init($as(self,goo_object))
 
 void goo_object_destroy(goo_object *);
+void static_goo_object_destroy(goo_object *);
 #define $goo_object_destroy(self) goo_object_destroy($as(self,goo_object))
-#define static_goo_object_destroy goo_object_destroy
-#define $static_goo_object_destroy $goo_object_destroy
+#define $static_goo_object_destroy(self) static_goo_object_destroy($as(self,goo_object))
 
 /* Safe casting operations
  * ============================
