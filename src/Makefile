@@ -18,12 +18,12 @@ reinstall:
 	-$(MAKE) uninstall
 	$(MAKE) install
 
-SOURCES=goo_model.mli goo_model.ml goo_c.ml goo_ml.ml
+SOURCES=goo_id.mli goo_id.ml goo_model.mli goo_model.ml goo_c.ml goo_ml.ml
 
 goo_gen.cma: $(SOURCES)
 	$(OCAMLC) -g -c $(SOURCES)
-	$(OCAMLC) -o goo_gen.cma -a goo_model.cmo goo_c.cmo goo_ml.cmo
+	$(OCAMLC) -o goo_gen.cma -a goo_id.cmo goo_model.cmo goo_c.cmo goo_ml.cmo
 
 goo_gen.cmxa: $(SOURCES)
 	$(OCAMLOPT) -g -c $(SOURCES)
-	$(OCAMLOPT) -o goo_gen.cmxa -a goo_c.cmx goo_ml.cmx
+	$(OCAMLOPT) -o goo_gen.cmxa -a goo_id.cmx goo_model.cmx goo_c.cmx goo_ml.cmx

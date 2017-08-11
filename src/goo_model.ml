@@ -1,22 +1,6 @@
 (* An identifier name, must be a valid OCaml and C identifier *)
 type name = string
 
-module Id : sig
-  type 'a t
-  val inj : name -> 'a -> 'a t
-  val prj : 'a t -> 'a
-  val name : 'a t -> name
-end = struct
-  external oo_id : unit -> int = "caml_fresh_oo_id"
-  type 'a t = { value : 'a; id : int; name : name }
-  let inj name value =
-    let result = { value; id = oo_id (); name } in
-    Obj.set_tag (Obj.repr result) Obj.object_tag;
-    result
-  let prj x = x.value
-  let name x = x.name
-end
-
 let failwithf fmt = Printf.ksprintf failwith fmt
 
 module Sealed_list : sig
@@ -54,12 +38,10 @@ end = struct
   let unsafe_rev_read xs = xs.items
 end
 
-type 'a id = 'a Id.t
-type void
-let forget : _ id -> void id = Obj.magic
+type 'a id = 'a Goo_id.t
 let ignore_id : _ id -> unit = ignore
 
-let inj = Id.inj and prj = Id.prj and name_of = Id.name
+let inj = Goo_id.inj and prj = Goo_id.prj and name_of = Goo_id.name
 
 type 'a sealed_list = 'a Sealed_list.t
 let seal = Sealed_list.seal

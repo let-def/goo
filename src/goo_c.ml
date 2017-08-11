@@ -42,7 +42,7 @@ let instance_variables, instance_variable =
   let table : (classe, variable list ref) I.Table.table = I.Table.create () in
   (fun cl -> List.rev !(get_list table cl)),
   (fun cl name v_type ->
-     add_to_list (get_list table cl) (Id.inj name { v_type }))
+     add_to_list (get_list table cl) (Goo_id.inj name { v_type }))
 
 let override, overriden =
   let table : (classe, func list ref) I.Table.table = I.Table.create () in
@@ -124,7 +124,7 @@ let number_of_properties cl0 =
   let count = ref 0 in
   iter_ancestors ~and_self:true cl0 (fun cl ->
       List.iter (fun var ->
-          match (Id.prj var ).v_type with
+          match (Goo_id.prj var ).v_type with
           | Object _ | Object_option _ -> incr count
           | _ -> ())
         (instance_variables cl);
@@ -141,7 +141,7 @@ let property_index cl0 name =
   let count = ref 0 in
   match iter_ancestors ~and_self:true cl0 (fun cl ->
       List.iter (fun var ->
-          match (Id.prj var).v_type with
+          match (Goo_id.prj var).v_type with
           | Object _ | Object_option _ ->
             if I.name_of var = name then raise Exit;
             incr count
@@ -265,7 +265,7 @@ let print_class_fields o cl_main =
   iter_ancestors ~and_self:true cl_main
     (fun cl ->
        List.iter (fun var ->
-           let name = I.name_of var and typ = (Id.prj var).v_type in
+           let name = I.name_of var and typ = (Goo_id.prj var).v_type in
            let name = match typ with
              | Object _ | Object_option _ -> "const " ^ name
              | _ -> name
@@ -464,7 +464,7 @@ let print_class_impl_h cl o =
   o "/* Heap variable setters */";
   o "";
   List.iter (fun var ->
-      let name = I.name_of var and typ = (Id.prj var).v_type in
+      let name = I.name_of var and typ = (Goo_id.prj var).v_type in
       match typ with
       | Object arg | Object_option arg ->
         print o "static inline void static_set_%s(%s *self, %s *v)" name
