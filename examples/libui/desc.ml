@@ -2,24 +2,59 @@
 #require "goo-gen";;
 open Goo_model
 
-let ui = package "libui"
+(* Some generic definitions to help binding libui *)
 
+(* A self_meth is a method that takes an instance of self as the first argument.  *)
 let self_meth cl ret name args =
   meth cl ret name (arg "self" (Object cl) :: args)
 
+(* The `'` variant returns an abstract name that identifies the method:
+     val self_meth : classe -> ... -> unit
+     val self_meth' : classe -> ... -> func
+*)
 let self_meth' cl ret name args =
   meth' cl ret name (arg "self" (Object cl) :: args)
 
+(* A constructor is a method that returns an instance but doesn't take it as
+   first argument. *)
 let constructor cl name args =
   Goo_c.set_concrete cl;
   meth cl [Object cl] name args
 
+(* A (boolean) property is a pair of methods: one to set, one to get. *)
 let prop cl name =
   self_meth cl [bool] ("is_" ^ name) [];
   self_meth cl [] ("set_" ^ name) [arg name bool]
 
+(* -- Declaration begins here.
+   `val ui : package` will be the abstract name that identifies the libui package.
+*)
+let ui = package "libui"
+
+(* Some toplevel function definitions *)
 let () =
+  (* The C compiler needs to know about the libui headers.
+     However this is a specific knowledge that the ML interface generator
+     doesn't need to know about.
+     `Goo_model` is about declaring the shared parts.  Entities of the model
+     are given abstract name.  Specific knowledge can then be added
+     per-backend. *)
   Goo_c.package_declare ui ["#include \"ui.h\""];
+  (* A function declaration is read in the "C" order:
+     func <package> <return types> <function name> <parameters>;
+
+     Multiple return types are allowed:
+     - an empty list maps to "void"
+     - a singleton maps to a normal C return-type
+     - a tuple maps to a list of pointers that are expected to be filled by the
+       C function.
+
+    func math [float;float] "transpose" [arg "re" float; arg "im" float]
+
+    maps to
+        void math_transpose(double re, double im, double *ret0, double *ret1)
+        val math_transpose : float -> float -> float * float
+  *)
   func ui [string] "init" [];
   func ui [] "uninit" [];
   func ui [] "main" [];
@@ -27,12 +62,27 @@ let () =
   func ui [int] "main_step" [arg "wait" int];
   func ui [] "quit" []
 
+(* The root of libui class hierarchy. *)
 let control = classe ui "control"
 
 let () =
+  (* All classe inherits from "goo_object", which is part of the runtime
+     support library.
+     The only method declared by "goo_object" is destroy. This is a dynamic
+     method (dispatched based on the actual class of its first argument) that
+     can be given a more specific definition by sub-classes.
+     But dynamicity and redefinition are implementation details and don't
+     affect the interface. Hence, override only matters to C backend.
+  *)
   Goo_c.override control goo_destroy;
+  (* A control object is just a wrapper around uiControl: each instance
+     contains a control field that points to the actual control.
+     Like dynamic dispatch information, instance variables only matter to the
+     implementation. They are not exposed in the interface.
+  *)
   Goo_c.instance_variable control "control" (Custom "uiControl *");
   (* uintptr_t uiControlHandle(uiControl * ); *)
+  (* Other basic methods. *)
   self_meth control [bool] "is_toplevel" [];
   self_meth control [bool] "is_visible" [];
   self_meth control [] "show" [];
@@ -41,6 +91,32 @@ let () =
   self_meth control [] "enable" [];
   self_meth control [] "disable" []
 
+(* Relations.
+   The structure of object graph is made explicit by the use of relations.
+   There are three concepts of relations: port, slots and collections.
+
+   A port is the endpoint of a relation. It can be empty (mapped to NULL /
+   None) or connected to a slot or a collection.
+   The declaration below reads "a control can have a single `parent` which is
+   itself a control."
+   A slot can connect to zero or one port.
+   A collection can connect to zero or many ports.
+
+   For instance, a window has a slot which is the root widget. A list layout
+   has a collection, the sequence of all widgets that are listed.
+
+   Symmetry is enforced: if button is the children of window, then window
+   will be the parent of button.
+
+   A last case of graph structure is captured: when one declares an
+   instance_variable of type (Object ...), the GC will be notified. However
+   this won't appear in the interface.
+
+   Together, the "symmetric" port, slot and collection and the anonymous
+   variable allow to capture all graph shapes, while ensuring safety and
+   friendly programming style (wellformed-ness of the graph is ensured).
+   The cost is that these relations must be declared upfront.
+   *)
 let control_parent = port control "parent" control
 
 let window = classe ui "window" ~extend:control
@@ -51,9 +127,16 @@ let () =
   (*self_meth window [int; int] "content_size" [];*)
   self_meth window [] "set_content_size" [arg "width" int; arg "height" int];
   prop window "fullscreen";
+  prop window "borderless";
+  (* Events.
+     Events allow control to call back to the interface language.
+     Each event is an optional closure that can be set from ML. *)
   event window [] "content_size_changed" [];
   event window [] "closing" [];
-  prop window "borderless";
+  (* The C backend allows C-code to be notified when a slot is disconnected.
+     The method "on_child_disconnect" will be invoked.  The abstract names
+     returned by slot' and self_meth' are used to connect both.
+  *)
   Goo_c.on_slot_disconnect
     (slot' window "child" control_parent)
     (self_meth' window [] "on_child_disconnect" ["object", Object control]);
@@ -61,6 +144,9 @@ let () =
   prop window "margined";
   constructor window "new"
         [arg "title" string; arg "width" int; arg "height" int; arg "has_menubar" bool]
+
+(* The rest of the file just builds on these concepts to bind the rest of the API.
+   Jump to the last lines for the end of the introduction. *)
 
 let button = classe ui "button" ~extend:control
 
@@ -284,7 +370,18 @@ let () =
   prop grid "padded";
   constructor grid "new" []
 
+(* The model and backends have now been fed with the description of library.
+   We can tell the generators to start their work. *)
 let () =
+  (* The C generator will produce
+     - libui.h for shared definitions
+     - for each class, a file libui_<class>.h that contains private definitions.
+     Template files libui_manual.c libui_<class>.c are generated if they don't
+     already exist with the skeleton of the implementation.  In most cases this
+     implementation should be filled manually.
+  *)
   Goo_c.generate ui ~dir:"./";
+  (* The ML generator will produce libui_stubs.c and libui.ml that binds the
+     model above to OCaml runtime. Nothing has to be written manually. *)
   Goo_ml.generate ui ~dir:"./"
 ;;
