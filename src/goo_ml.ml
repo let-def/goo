@@ -196,6 +196,7 @@ let bytecode_proxy o name argc =
   o "}"
 
 let print_ml_c_stubs pkg o =
+  o "#include <caml/alloc.h>";
   o "#include <caml/memory.h>";
   o "#include <caml/callback.h>";
   o "#include \"ml_goo.h\"";
@@ -251,38 +252,41 @@ let print_ml_c_stubs pkg o =
     in
     if List.exists (function (Custom _) -> true | _ -> false) (I.func_ret func) then
       raise Not_an_ml_type;
-    begin match I.func_ret func with
-      | _ :: _ :: _ -> raise Not_an_ml_type (*failwith "Not supported"*)
-      | _ -> ()
-    end;
     o "";
     let argc = List.length args in
     print o "value ml_%s(%s)" (C.func_symbol func) (n_args argc);
     o "{";
     caml_param o argc;
     o "  GOO_ENTER_REGION;";
-    let args = String.concat ", " args in
-    let call = sprint "%s(%s)" (C.func_symbol func) args in
+    let call args = sprint "%s(%s)" (C.func_symbol func) (String.concat ", " args) in
+    let inj_typ = function
+      | Bool -> "Val_bool"
+      | Int -> "Val_long"
+      | Float -> "caml_copy_double"
+      | String -> "Val_goo_string"
+      | Flag e -> sprint "Val_%s" (I.name_of e)
+      | Object _ -> "$Val_goo"
+      | Object_option _ -> "$Val_goo_option"
+      | Custom _ -> assert false
+    in
     begin match I.func_ret func with
-      | [typ] ->
-        let inj = match typ with
-          | Bool -> "Val_bool"
-          | Int -> "Val_long"
-          | Float -> "caml_copy_double"
-          | String -> "Val_goo_string"
-          | Flag e -> sprint "Val_%s" (I.name_of e)
-          | Object _ -> "$Val_goo"
-          | Object_option _ -> "$Val_goo_option"
-          | Custom _ -> assert false
-        in
-        print o "  value goo_result = %s(%s);" inj call;
-        o "  GOO_LEAVE_REGION;";
-        o "  CAMLreturn(goo_result);";
       | [] ->
-        print o "  %s;" call;
+        print o "  %s;" (call args);
         o "  GOO_LEAVE_REGION;";
         o "  CAMLreturn(Val_unit);"
-      | _ -> assert false
+      | [typ] ->
+        print o "  value goo_result = %s(%s);" (inj_typ typ) (call args);
+        o "  GOO_LEAVE_REGION;";
+        o "  CAMLreturn(goo_result);";
+      | typs ->
+        let args' = List.mapi (fun i typ -> let name = "ret" ^ string_of_int i  in print o "  %s;" (Goo_c.ctype name typ); (name, typ)) typs in
+        print o " %s;" (call (args @ List.map (fun (x,_) -> "&" ^ x) args'));
+        o "  value *tuple = goo_region_alloc();";
+        print o "*tuple = caml_alloc_tuple(%d);" (List.length typs);
+        List.iteri (fun i (arg,typ) -> print o " Field(*tuple,%d) = %s(%s);" i (inj_typ typ) arg) args';
+        o "  value goo_result = *tuple;";
+        o "  GOO_LEAVE_REGION;";
+        o "  CAMLreturn(goo_result);";
     end;
     o "}";
     if (argc > 5) then bytecode_proxy o (C.func_symbol func) argc
@@ -320,96 +324,6 @@ let print_ml_c_stubs pkg o =
             index (List.length cargs);
           o "}";
         ) (I.class_events c);
-    (*let f = function
-          | Method (name, args, ret, _, static) ->
-            let args = ("", Object c) :: args in
-            let args = List.mapi (fun i (_name, typ) ->
-                match typ with
-                | Bool -> sprint "Bool_val(arg%d)" i
-                | Int -> sprint "Long_val(arg%d)" i
-                | Float -> sprint "Double_val(arg%d)" i
-                | String -> sprint "Goo_string_val(arg%d)" i
-                | Enum e -> sprint "%s_val(arg%d)" (enum_name e) i
-                | Cobject (cl, opt) ->
-                  let opt = if opt then "_option" else "" in
-                  sprint "$Goo_val%s(arg%d, %s)" opt i (c_class_name cl)
-                | Custom _ -> raise Not_an_ml_type
-              ) args
-            in
-            begin match ret with
-              | Some (Custom _) -> raise Not_an_ml_type
-              | _ -> ()
-            end;
-            o "";
-            let argc = List.length args in
-            print o "value ml_%s_%s(%s)" cname name (n_args argc);
-            o "{";
-            caml_param o argc;
-            o "  GOO_ENTER_REGION;";
-            let args = String.concat ", " args in
-            let call =
-              if static then
-                sprint "$static(%s, %s)(%s)" cname name args
-              else
-                sprint "$send($Goo_val(arg0, %s), %s)(%s)" cname name args
-            in
-            begin match ret with
-              | Some typ ->
-                let inj = match typ with
-                  | Bool -> "Val_bool"
-                  | Int -> "Val_long"
-                  | Float -> "caml_copy_double"
-                  | String -> "Val_goo_string"
-                  | Enum e -> sprint "Val_%s" (enum_name e)
-                  | Cobject _ -> "$Val_goo"
-                  | Custom _ -> assert false
-                in
-                print o "  value goo_result = %s(%s);" inj call;
-                o "  GOO_LEAVE_REGION;";
-                o "  CAMLreturn(goo_result);";
-              | None ->
-                print o "  %s;" call;
-                o "  GOO_LEAVE_REGION;";
-                o "  CAMLreturn(Val_unit);"
-            end;
-            o "}";
-            if (argc > 5) then bytecode_proxy o (c_method_name c name) argc
-          | Event (name, args) ->
-            o "";
-            let cargs = ("self", cobject c) :: args in
-            let cargs = List.map (fun (n,t) -> Goo_c.ctype n t) cargs in
-            print o "goo_bool %s_on_%s(%s)" cname name (String.concat ", " cargs);
-            o "{";
-            o "  CAMLparam0();";
-            caml_local o (if args = [] then 1 else 3);
-            o "  var0 = $Val_goo_handler_helper(self);";
-            o "  if (var0 == Val_unit)";
-            o "    CAMLreturn(0);";
-            if args = [] then (
-              print o "  CAMLreturn(Bool_val(caml_callback2(Field(var0,1),var0,Val_long(%d))));" (hash_variant name);
-            ) else (
-              print o "  var1 = caml_alloc_tuple(%d);" (List.length args);
-              List.iteri (fun i (name, typ) ->
-                  let inj = match typ with
-                    | Bool -> "Val_bool"
-                    | Int -> "Val_long"
-                    | Float -> "caml_copy_double"
-                    | String -> "Val_goo_string"
-                    | Enum e -> sprint "Val_%s" (enum_name e)
-                    | Cobject _ -> "$Val_goo"
-                    | Custom _ -> assert false
-                  in
-                  print o "  Store_field(var1, %d, %s(%s));" i inj name;
-                ) args;
-              o "  var2 = caml_alloc_tuple(2);";
-              print o "  Field(var2, 0) = Val_long(%d);" (hash_variant name);
-              o "  Field(var2, 1) = var1;";
-              o "  CAMLreturn(Bool_val(caml_callback2(Field(var0,1),var0,var2)));";
-            );
-            o "}";
-          | _ -> ()
-      in*)
-      (*List.iter (fun x -> try f x with Not_an_ml_type -> ()) (I.class_fields c);*)
       List.iter (function
           | I.Rel_collection col ->
             let pt = I.collection_port col in

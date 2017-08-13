@@ -138,7 +138,13 @@ let make_data_choosers_page mainwin =
   box_append vbox (date_time_picker_new_time ()) false;
   box_append vbox (date_time_picker_new ()) false;
   box_append vbox (font_button_new ()) false;
-  box_append vbox (color_button_new ()) false;
+  let cb = color_button_new () in
+  box_append vbox cb false;
+  Goo.set_event cb event_color_button_changed (fun self ->
+      let r,g,b,a = color_button_get_color self in
+      Printf.printf "picked color (%.00f%%,%.00f%%,%.00f%%,%.00f%%)\n%!"
+        (r *. 100.0) (g *. 100.0) (b *. 100.0) (a *. 100.0)
+    );
   box_append hbox (separator_new_vertical ()) false;
 
   let vbox = box_new_vertical () in
