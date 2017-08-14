@@ -1,8 +1,13 @@
+(* In Goo, one models a library to bind by describing the shape of the heap:
+   - defining the objects (nodes of the heap graph),
+   - the relations between objects (edges of the heap graph),
+   - their methods (what can be done with an object).
+
+   This module gives the definition of all entities.
+   See [examples/libui/desc.ml] for a sample use of the entities.
+*)
 (* An identifier name, must be a valid OCaml and C identifier.
    An id is just a wrapper that gives a value a physical identity.
-
-   The modoule gives a formal definition of all entities.
-   See [examples/libui/desc.ml] for a sample use of the entities.
 *)
 type name = string
 type 'a id = 'a Goo_id.t
@@ -23,6 +28,9 @@ type slot_desc
 type package = package_desc id
 val package : name -> package
 
+(* Classes describe the shape of the nodes.
+   A class can extend another one. An instance of a class B that extends class
+   A is also an instance of A.  *)
 type classe = classe_desc id
 val classe : package -> ?extend:classe -> name -> classe
 
