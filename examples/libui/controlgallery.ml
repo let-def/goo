@@ -161,6 +161,7 @@ let make_data_choosers_page mainwin =
   Goo.set_event button event_button_clicked (fun self ->
       let filename = open_file mainwin in
       entry_set_text entry (if filename = "" then "(cancelled)" else filename);
+      "haha";
     );
   grid_append grid button 0 0 1 1 false `Fill false `Fill;
   grid_append grid entry  1 0 1 1 true  `Fill false `Fill;
@@ -170,7 +171,8 @@ let make_data_choosers_page mainwin =
   entry_set_readonly entry true;
   Goo.set_event button event_button_clicked (fun self ->
       let filename = save_file mainwin in
-      entry_set_text entry (if filename = "" then "(cancelled)" else filename)
+      entry_set_text entry (if filename = "" then "(cancelled)" else filename);
+      "hoho"
     );
   grid_append grid button 0 1 1 1 false `Fill false `Fill;
   grid_append grid entry  1 1 1 1 true  `Fill false `Fill;
@@ -183,7 +185,8 @@ let make_data_choosers_page mainwin =
   Goo.set_event button event_button_clicked (fun self ->
       msg_box mainwin
         "This is a normal message box."
-        "More detailed information can be shown here."
+        "More detailed information can be shown here.";
+      "hoho"
     );
   grid_append msggrid button 0 0 1 1 false `Fill false `Fill;
   let button = button_new "Error Box" in
@@ -191,6 +194,7 @@ let make_data_choosers_page mainwin =
       msg_box_error mainwin
         "This message box describes an error."
         "More detailed information can be shown here.";
+      "hihi"
     );
   grid_append msggrid button 1 0 1 1 false `Fill false `Fill;
   hbox

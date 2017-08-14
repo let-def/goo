@@ -3,7 +3,15 @@
 
 static void on_clicked(uiButton *b, void *self)
 {
-  $static(event, clicked)((libui_button*)self);
+  goo_string result = null_string;
+  if ($static(event, clicked)((libui_button*)self, &result))
+  {
+    puts(goo_string_data(result));
+  }
+  else
+  {
+    puts("event failed");
+  }
 }
 
 $method libui_button* self_new(goo_string text)

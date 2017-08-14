@@ -197,6 +197,25 @@ let func_args_str ?at_class func =
   in
   String.concat ", " (List.map prepare_arg (func_params ?at_class func ))
 
+let event_symbol event =
+  "event_" ^ class_name (I.event_classe event) ^ "_" ^ I.name_of event
+
+let event_ret event =
+  List.mapi (fun i ty -> "ret" ^ string_of_int i, ty) (I.event_ret event)
+
+let event_params event =
+  I.event_args ~with_self:true event @
+  List.map (fun (k,v) -> "*" ^ k, v) (event_ret event)
+
+let event_params_str event =
+  params_str (event_params event)
+
+let event_args_str event =
+  let prepare_arg (k, _) =
+    if k.[0] = '*' then String.sub k 1 (String.length k - 1) else k
+  in
+  String.concat ", " (List.map prepare_arg (event_params event))
+
 let print_proxy o name params =
   let remove_star k =
     if k.[0] = '*' then String.sub k 1 (String.length k - 1) else k
@@ -482,13 +501,12 @@ let print_class_impl_h cl o =
   iter_ancestors ~and_self:true cl
     (fun cl ->
        List.iter (fun event ->
-           let args = arg "self" (Object (I.event_classe event)) :: I.event_args event in
-           print o "goo_bool event_%s_%s(%s);"
-             (class_name cl) (I.name_of event) (params_str args);
-           print o "#define $static_event_%s event_%s_%s"
-             (I.name_of event) (class_name cl) (I.name_of event);
+           print o"goo_bool %s(%s);"
+             (event_symbol event) (event_params_str event);
+           print o "#define $static_event_%s %s"
+             (I.name_of event) (event_symbol event);
            print_proxy o
-             (sprint "event_%s_%s" (class_name cl) (I.name_of event)) args
+             (sprint "event_%s_%s" (class_name cl) (I.name_of event)) (event_params event)
          ) (I.class_events cl)
     );
   (*let print_field cl = function

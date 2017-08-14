@@ -153,7 +153,7 @@ let button = classe ui "button" ~extend:control
 let () =
   self_meth button [string] "text" [];
   self_meth button [] "set_text" [arg "text" string];
-  event button [] "clicked" [];
+  event button [string] "clicked" [];
   constructor button "new" [arg "text" string]
 
 let box = classe ui "box" ~extend:control

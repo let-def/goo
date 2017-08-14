@@ -196,5 +196,5 @@ module Introspect : sig
 
   val event_classe : event -> classe
   val event_ret : event -> ctype list
-  val event_args : event -> arg list
+  val event_args : ?with_self:bool -> event -> arg list
 end

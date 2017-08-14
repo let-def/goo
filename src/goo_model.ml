@@ -338,6 +338,10 @@ module Introspect = struct
   let collection_port col = (prj col).col_port
 
   let event_classe ev = (prj ev).ev_classe
-  let event_args ev = (prj ev).ev_args
+  let event_args ?(with_self=false) ev =
+    let result = (prj ev).ev_args in
+    if with_self
+    then ("self", Object (event_classe ev)) :: result
+    else result
   let event_ret ev = (prj ev).ev_ret
 end

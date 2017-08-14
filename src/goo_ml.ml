@@ -235,21 +235,28 @@ let print_ml_c_stubs pkg o =
       o "}";
       o "";
     ) (I.package_enums pkg);
+  let prj_typ typ var = match typ with
+    | Bool -> sprint "Bool_val(%s)" var
+    | Int -> sprint "Long_val(%s)" var
+    | Float -> sprint "Double_val(%s)" var
+    | String -> sprint "Goo_string_val(%s)" var
+    | Flag e -> sprint "%s_val(%s)" (I.name_of e) var
+    | Object cl -> sprint "$Goo_val(%s, %s)" var (C.class_name cl)
+    | Object_option cl -> sprint "$Goo_val_option(%s, %s)" var (C.class_name cl)
+    | Custom _ -> raise Not_an_ml_type
+  in
+  let inj_typ typ var = match typ with
+    | Bool -> sprint "Val_bool(%s)" var
+    | Int -> sprint "Val_long(%s)" var
+    | Float -> sprint "caml_copy_double(%s)" var
+    | String -> sprint "Val_goo_string(%s)" var
+    | Flag e -> sprint "Val_%s(%s)" (I.name_of e) var
+    | Object _ -> sprint "$Val_goo(%s)" var
+    | Object_option _ -> sprint "$Val_goo_option(%s)" var
+    | Custom _ -> raise Not_an_ml_type
+  in
   let print_func func =
-    let args = List.mapi (fun i (_name, typ) ->
-        match typ with
-        | Bool -> sprint "Bool_val(arg%d)" i
-        | Int -> sprint "Long_val(arg%d)" i
-        | Float -> sprint "Double_val(arg%d)" i
-        | String -> sprint "Goo_string_val(arg%d)" i
-        | Flag e -> sprint "%s_val(arg%d)" (I.name_of e) i
-        | Object cl ->
-          sprint "$Goo_val(arg%d, %s)" i (C.class_name cl)
-        | Object_option cl ->
-          sprint "$Goo_val_option(arg%d, %s)" i (C.class_name cl)
-        | Custom _ -> raise Not_an_ml_type
-      ) (I.func_args func)
-    in
+    let args = List.mapi (fun i (_, typ) -> prj_typ typ ("arg" ^ string_of_int i)) (I.func_args func) in
     if List.exists (function (Custom _) -> true | _ -> false) (I.func_ret func) then
       raise Not_an_ml_type;
     o "";
@@ -259,23 +266,13 @@ let print_ml_c_stubs pkg o =
     caml_param o argc;
     o "  GOO_ENTER_REGION;";
     let call args = sprint "%s(%s)" (C.func_symbol func) (String.concat ", " args) in
-    let inj_typ = function
-      | Bool -> "Val_bool"
-      | Int -> "Val_long"
-      | Float -> "caml_copy_double"
-      | String -> "Val_goo_string"
-      | Flag e -> sprint "Val_%s" (I.name_of e)
-      | Object _ -> "$Val_goo"
-      | Object_option _ -> "$Val_goo_option"
-      | Custom _ -> assert false
-    in
     begin match I.func_ret func with
       | [] ->
         print o "  %s;" (call args);
         o "  GOO_LEAVE_REGION;";
         o "  CAMLreturn(Val_unit);"
       | [typ] ->
-        print o "  value goo_result = %s(%s);" (inj_typ typ) (call args);
+        print o "  value goo_result = %s;" (inj_typ typ (call args));
         o "  GOO_LEAVE_REGION;";
         o "  CAMLreturn(goo_result);";
       | typs ->
@@ -283,7 +280,7 @@ let print_ml_c_stubs pkg o =
         print o " %s;" (call (args @ List.map (fun (x,_) -> "&" ^ x) args'));
         o "  value *tuple = goo_region_alloc();";
         print o "*tuple = caml_alloc_tuple(%d);" (List.length typs);
-        List.iteri (fun i (arg,typ) -> print o " Field(*tuple,%d) = %s(%s);" i (inj_typ typ) arg) args';
+        List.iteri (fun i (arg,typ) -> print o " Field(*tuple,%d) = %s;" i (inj_typ typ arg)) args';
         o "  value goo_result = *tuple;";
         o "  GOO_LEAVE_REGION;";
         o "  CAMLreturn(goo_result);";
@@ -298,11 +295,11 @@ let print_ml_c_stubs pkg o =
       List.iter (fun event ->
           o "";
           let index = C.property_index c (I.name_of event) in
-          let cargs = ("self", Object c) :: I.event_args event in
-          print o "goo_bool event_%s_%s(%s)"
-            (C.class_name c) (I.name_of event) (C.params_str cargs);
+          print o "goo_bool %s(%s)"
+            (C.event_symbol event) (C.event_params_str event);
           o "{";
           o "  CAMLparam0();";
+          let cargs = I.event_args ~with_self:false event in
           print o "  CAMLlocalN(var, %d);" (1 + List.length cargs);
           print o "  var[0] = $Val_goo_handler_helper(self, %d);" index;
           o "  if (var[0] == Val_unit)";
@@ -320,8 +317,22 @@ let print_ml_c_stubs pkg o =
               in
               print o "  var[%d] = %s(%s);" (i + 1) inj name;
             ) cargs;
-          print o "  CAMLreturn(Bool_val(caml_callbackN(Field(var[0],%d+2),%d,&var[1])));"
-            index (List.length cargs);
+          print o "  var[0] = caml_callbackN_exn(Field(var[0],%d+2),%d,&var[0]);"
+            index (1 + List.length cargs);
+          o "  if (Is_exception_result(var[0])) {";
+          o "    var[0] = Extract_exception(var[0]);";
+          o "    /* TODO: print/debug exception */";
+          o "    CAMLreturn(0);";
+          o "  }";
+          begin match C.event_ret event with
+            | [] -> ()
+            | [var, typ] ->
+              print o " *%s = %s;" var (prj_typ typ "var[0]")
+            | typs ->
+              List.iteri (fun i (var, typ) -> print o " *%s = %s;" var (prj_typ typ (sprint "Field(var[0],%d)" i))) typs
+          end;
+          o "  ";
+          o "  CAMLreturn(1);";
           o "}";
         ) (I.class_events c);
       List.iter (function
