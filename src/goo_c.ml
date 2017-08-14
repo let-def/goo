@@ -44,9 +44,29 @@ let instance_variables, instance_variable =
   (fun cl name v_type ->
      add_to_list (get_list table cl) (Goo_id.inj name { v_type }))
 
+let add_method_body, method_bodies =
+  let table : (classe * func, string list) Hashtbl.t = Hashtbl.create 7 in
+  (fun cl func body -> match Hashtbl.find table (cl, func) with
+     | _ ->
+       Printf.ksprintf failwith
+         "add_method_body: method %s.%s already has already been given a body"
+         (class_name cl) (I.name_of func)
+     | exception Not_found ->
+       Hashtbl.add table (cl, func) body
+  ),
+  (fun cl func -> match Hashtbl.find table (cl,func) with
+     | exception Not_found -> None
+     | body -> Some body
+  )
+
 let override, overriden =
   let table : (classe, func list ref) I.Table.table = I.Table.create () in
-  (fun cl func -> add_to_list (get_list table cl) func),
+  (fun cl ?body func ->
+     add_to_list (get_list table cl) func;
+     match body with
+     | None -> ()
+     | Some body -> add_method_body cl func body
+  ),
   (fun cl -> List.rev !(get_list table cl))
 
 let get_disconnect_callback, add_disconnect_callback =
@@ -547,7 +567,41 @@ let print_class_impl_h cl o =
            (I.class_funcs cl)
       );
     o "};";
-  )
+  );
+  o "";
+  o "/* Method bodies */";
+  o "";
+  (* Overriden methods *)
+  iter_ancestors cl (fun cl' ->
+      List.iter
+        (fun func ->
+           match lookup_override cl func with
+           | cl0 :: _ when cl0 = cl ->
+             begin match method_bodies cl func with
+               | Some body ->
+                 print o "$method %sself_%s(%s)"
+                   (func_ret_str func) (I.name_of func) (func_params_str ~at_class:cl func);
+                 o "{";
+                 List.iter o body;
+                 o "}";
+               | None -> ()
+             end
+           | _ -> ()
+        )
+        (I.class_funcs cl')
+    );
+  (* New methods *)
+  List.iter
+    (fun func ->
+       match method_bodies cl func with
+       | Some body ->
+         print o "$method %sself_%s(%s)"
+           (func_ret_str func) (I.name_of func) (func_params_str func);
+         o "{";
+         List.iter o body;
+         o "}";
+       | None -> ()
+    ) (I.class_funcs cl)
 
 let print_class_impl_c cl o =
   print o "#include \"%s.h\"" (class_name cl);
