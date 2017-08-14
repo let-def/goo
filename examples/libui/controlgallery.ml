@@ -161,7 +161,7 @@ let make_data_choosers_page mainwin =
   Goo.set_event button event_button_clicked (fun self ->
       let filename = open_file mainwin in
       entry_set_text entry (if filename = "" then "(cancelled)" else filename);
-      "haha";
+      raise Exit
     );
   grid_append grid button 0 0 1 1 false `Fill false `Fill;
   grid_append grid entry  1 0 1 1 true  `Fill false `Fill;
@@ -172,7 +172,7 @@ let make_data_choosers_page mainwin =
   Goo.set_event button event_button_clicked (fun self ->
       let filename = save_file mainwin in
       entry_set_text entry (if filename = "" then "(cancelled)" else filename);
-      "hoho"
+      failwith "lol"
     );
   grid_append grid button 0 1 1 1 false `Fill false `Fill;
   grid_append grid entry  1 1 1 1 true  `Fill false `Fill;

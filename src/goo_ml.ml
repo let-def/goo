@@ -321,7 +321,7 @@ let print_ml_c_stubs pkg o =
             index (1 + List.length cargs);
           o "  if (Is_exception_result(var[0])) {";
           o "    var[0] = Extract_exception(var[0]);";
-          o "    /* TODO: print/debug exception */";
+          print o "    ml_goo_debug_aborted_event(%S, var[0]);" (C.event_symbol event);
           o "    CAMLreturn(0);";
           o "  }";
           begin match C.event_ret event with

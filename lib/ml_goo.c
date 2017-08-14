@@ -5,6 +5,7 @@
 #include "caml/memory.h"
 #include "caml/callback.h"
 #include "caml/custom.h"
+#include "caml/printexc.h"
 #include "goo_system.h"
 
 static value Val_some(value v)
@@ -346,4 +347,19 @@ value *goo_region_alloc(void)
   region->desc.nitems = 1;
   region->values[0] = Val_unit;
   return &region->values[0];
+}
+
+void ml_goo_debug_aborted_event(const char *event, value exn)
+{
+  static value *exit_exception = NULL;
+  if (exit_exception == NULL)
+  {
+    exit_exception = caml_named_value("ml_goo_exit");
+    if (exit_exception == NULL) abort ();
+  }
+  if (exn == *exit_exception || Field(exn, 0) == Field(*exit_exception, 0))
+    return;
+  const char *message = caml_format_exception(exn);
+  printf("event %s aborted with exception: %s\n", event, message);
+  free((void*)message);
 }

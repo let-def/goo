@@ -19,7 +19,8 @@ let () =
   let deref x = Goo_ref.wderef table x in
   Callback.register "ml_goo_alloc" alloc;
   Callback.register "ml_goo_deref" deref;
-  Callback.register "ml_goo_string" ""
+  Callback.register "ml_goo_string" "";
+  Callback.register_exception "ml_goo_exit" Exit
 
 (* Primitive comparison, hashing and equality of Goo objects.
 

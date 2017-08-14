@@ -40,6 +40,8 @@ value Val_goo_string(goo_string str);
 
 value ml_goo_cast(value object, value witness);
 
+void ml_goo_debug_aborted_event(const char *event, value exn);
+
 void ml_goo_port_connect(goo_object *source, unsigned int collection_prop, goo_object *target, unsigned int target_prop);
 #define $ml_goo_port_connect(source, collection_prop, target, target_prop) \
   ml_goo_port_connect($as(source, goo_object), collection_prop, $as(target, goo_object), target_prop)
