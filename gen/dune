@@ -1,0 +1,4 @@
+(library
+ (name goo_gen)
+ ;(public_name goo.gen)
+ (libraries unix))

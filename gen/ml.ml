@@ -1,5 +1,4 @@
-open Goo_model
-module C = Goo_c
+open Model
 module I = Introspect
 
 let sprint = Printf.sprintf
@@ -11,7 +10,7 @@ let qualify_pkg (pkg : package) path_pkg path =
 
 let class_name pkg cl =
   let cl_pkg = I.class_package cl in
-  if cl = Goo_model.goo_object then
+  if cl = goo_object then
     "goo_object"
   else
     qualify_pkg pkg cl_pkg (I.name_of cl)
@@ -101,7 +100,7 @@ let print_ml_stubs pkg o =
           print o "let event_%s_%s : ([> %s], %s) event = Obj.magic %d"
             (I.name_of cl) (I.name_of event) (I.name_of cl)
             (ml_function pkg ~allow_caf:true (I.event_args event) (I.event_ret event))
-            (Goo_c.property_index cl (I.name_of event))
+            (C.property_index cl (I.name_of event))
         ) (I.class_events cl);
       List.iter (function
           | I.Rel_collection col ->
@@ -146,11 +145,18 @@ let n_args n =
 let rec caml_xparam o i j =
   match j - i with
   | 0 -> ()
-  | 1 -> print o "  CAMLxparam1(arg%d);" i
-  | 2 -> print o "  CAMLxparam2(arg%d, arg%d);" i (i + 1)
-  | 3 -> print o "  CAMLxparam3(arg%d, arg%d, arg%d);" i (i + 1) (i + 2)
-  | 4 -> print o "  CAMLxparam4(arg%d, arg%d, arg%d, arg%d);" i (i + 1) (i + 2) (i + 3)
-  | n -> print o "  CAMLxparam5(arg%d, arg%d, arg%d, arg%d, arg%d);" i (i + 1) (i + 2) (i + 3) (i + 4);
+  | 1 ->
+    print o "  CAMLxparam1(arg%d);" i
+  | 2 ->
+    print o "  CAMLxparam2(arg%d, arg%d);" i (i + 1)
+  | 3 ->
+    print o "  CAMLxparam3(arg%d, arg%d, arg%d);" i (i + 1) (i + 2)
+  | 4 ->
+    print o "  CAMLxparam4(arg%d, arg%d, arg%d, arg%d);"
+      i (i + 1) (i + 2) (i + 3)
+  | _ ->
+    print o "  CAMLxparam5(arg%d, arg%d, arg%d, arg%d, arg%d);"
+      i (i + 1) (i + 2) (i + 3) (i + 4);
     caml_xparam o (i + 5) j
 
 let caml_param o = function
@@ -159,17 +165,25 @@ let caml_param o = function
   | 2 -> o "  CAMLparam2(arg0, arg1);"
   | 3 -> o "  CAMLparam3(arg0, arg1, arg2);"
   | 4 -> o "  CAMLparam4(arg0, arg1, arg2, arg3);"
-  | n -> o "  CAMLparam5(arg0, arg1, arg2, arg3, arg4);";
+  | n ->
+    o "  CAMLparam5(arg0, arg1, arg2, arg3, arg4);";
     caml_xparam o 5 n
 
 let rec caml_local o i j =
   match j - i with
   | 0 -> ()
-  | 1 -> print o "  CAMLlocal1(var%d);" i
-  | 2 -> print o "  CAMLlocal2(var%d, var%d);" i (i + 1)
-  | 3 -> print o "  CAMLlocal3(var%d, var%d, var%d);" i (i + 1) (i + 2)
-  | 4 -> print o "  CAMLlocal4(var%d, var%d, var%d, var%d);" i (i + 1) (i + 2) (i + 3)
-  | n -> print o "  CAMLlocal5(var%d, var%d, var%d, var%d, var%d);" i (i + 1) (i + 2) (i + 3) (i + 4);
+  | 1 ->
+    print o "  CAMLlocal1(var%d);" i
+  | 2 ->
+    print o "  CAMLlocal2(var%d, var%d);" i (i + 1)
+  | 3 ->
+    print o "  CAMLlocal3(var%d, var%d, var%d);" i (i + 1) (i + 2)
+  | 4 ->
+    print o "  CAMLlocal4(var%d, var%d, var%d, var%d);"
+      i (i + 1) (i + 2) (i + 3)
+  | _ ->
+    print o "  CAMLlocal5(var%d, var%d, var%d, var%d, var%d);"
+      i (i + 1) (i + 2) (i + 3) (i + 4);
     caml_local o (i + 5) j
 
 let caml_local o n = caml_local o 0 n
@@ -203,7 +217,8 @@ let print_ml_c_stubs pkg o =
   print o "#include \"%s.h\"" (I.name_of pkg);
   o "";
   List.iter (fun c ->
-      print o "value ml_witness_%s(value unit) { return (((intnat)&goo_%s_witness)|1); }"
+      print o "value ml_witness_%s(value unit) \
+               { return (((intnat)&goo_%s_witness)|1); }"
         (C.class_name c) (C.class_name c)
     ) (I.package_classes pkg);
   o "";
@@ -276,7 +291,7 @@ let print_ml_c_stubs pkg o =
         o "  GOO_LEAVE_REGION;";
         o "  CAMLreturn(goo_result);";
       | typs ->
-        let args' = List.mapi (fun i typ -> let name = "ret" ^ string_of_int i  in print o "  %s;" (Goo_c.ctype name typ); (name, typ)) typs in
+        let args' = List.mapi (fun i typ -> let name = "ret" ^ string_of_int i  in print o "  %s;" (C.ctype name typ); (name, typ)) typs in
         print o " %s;" (call (args @ List.map (fun (x,_) -> "&" ^ x) args'));
         o "  value *tuple = goo_region_alloc();";
         print o "*tuple = caml_alloc_tuple(%d);" (List.length typs);
@@ -359,6 +374,6 @@ let generate pkg ~dir =
   in
   mkdir dir;
   let filename base ext = Filename.concat dir (base ^ "." ^ ext) in
-  Goo_c.with_file (filename (I.name_of pkg) "ml") ~force:true (print_ml_stubs pkg);
-  Goo_c.with_file (filename (I.name_of pkg ^ "_stubs") "c") ~force:true (print_ml_c_stubs pkg);
+  C.with_file (filename (I.name_of pkg) "ml") ~force:true (print_ml_stubs pkg);
+  C.with_file (filename (I.name_of pkg ^ "_stubs") "c") ~force:true (print_ml_c_stubs pkg);
   ()

@@ -1,0 +1,5 @@
+(library
+ (name goo)
+ (foreign_stubs
+   (language c)
+   (names ml_goo goo_system ml_goo)))

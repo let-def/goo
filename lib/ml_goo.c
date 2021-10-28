@@ -93,7 +93,7 @@ static value Val_goo_alloc(goo_object *goo)
   Field(block, 1) = ((intnat)goo)|1;
   *root = block;
 
-  static value * alloc_id = NULL;
+  static const value * alloc_id = NULL;
   if (alloc_id == NULL)
     alloc_id = caml_named_value("ml_goo_alloc");
 
@@ -112,7 +112,7 @@ value Val_goo(goo_object *goo)
   if ($field(goo, handle_) == NULL)
     return Val_goo_alloc(goo);
 
-  static value *deref = NULL;
+  static const value *deref = NULL;
   if (deref == NULL)
     deref = caml_named_value("ml_goo_deref");
 
@@ -178,7 +178,7 @@ value Val_goo_string(goo_string str)
   if (str.data)
     return *(value*)str.data;
 
-  static value *string_null = NULL;
+  static const value *string_null = NULL;
   if (string_null == NULL)
     string_null = caml_named_value("ml_goo_string");
 
@@ -195,7 +195,7 @@ goo_string goo_string_from_c(const char *string)
 goo_string goo_string_from_mem(const char *string, size_t len)
 {
   value v = caml_alloc_string(len);
-  memcpy(String_val(v), string, len);
+  memcpy(Bytes_val(v), string, len);
   return Goo_string_val(v);
 }
 
@@ -351,7 +351,7 @@ value *goo_region_alloc(void)
 
 void ml_goo_debug_aborted_event(const char *event, value exn)
 {
-  static value *exit_exception = NULL;
+  static const value *exit_exception = NULL;
   if (exit_exception == NULL)
   {
     exit_exception = caml_named_value("ml_goo_exit");

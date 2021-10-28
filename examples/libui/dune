@@ -1,0 +1,95 @@
+(library
+ (name goo_libui) 
+ (modules libui)
+ (libraries goo)
+ (c_library_flags (-lui))
+ (wrapped false)
+ (foreign_stubs
+   (language c)
+   (names libui_box
+          libui_button
+          libui_checkbox
+          libui_color_button
+          libui_combobox
+          libui_control
+          libui_date_time_picker
+          libui_editable_combobox
+          libui_entry
+          libui_font_button
+          libui_form
+          libui_grid
+          libui_group
+          libui_label
+          libui_manual
+          libui_menu
+          libui_menu_item
+          libui_multiline_entry
+          libui_progressbar
+          libui_radio_buttons
+          libui_separator
+          libui_slider
+          libui_spinbox
+          libui_tab
+          libui_window
+          libui_stubs)))
+
+(executable
+  (name desc)
+  (modules desc)
+  (libraries goo_gen))
+
+(rule
+ (deps desc.ml
+       libui_box.c
+       libui_button.c
+       libui_checkbox.c
+       libui_color_button.c
+       libui_combobox.c
+       libui_control.c
+       libui_date_time_picker.c
+       libui_editable_combobox.c
+       libui_entry.c
+       libui_font_button.c
+       libui_form.c
+       libui_grid.c
+       libui_group.c
+       libui_label.c
+       libui_manual.c
+       libui_menu.c
+       libui_menu_item.c
+       libui_multiline_entry.c
+       libui_progressbar.c
+       libui_radio_buttons.c
+       libui_separator.c
+       libui_slider.c
+       libui_spinbox.c
+       libui_tab.c
+       libui_window.c)
+ (targets libui.h
+	        libui.ml
+	        libui_box.h
+	        libui_button.h
+	        libui_checkbox.h
+	        libui_color_button.h
+	        libui_combobox.h
+	        libui_control.h
+	        libui_date_time_picker.h
+	        libui_editable_combobox.h
+	        libui_entry.h
+	        libui_font_button.h
+	        libui_form.h
+	        libui_grid.h
+	        libui_group.h
+	        libui_label.h
+	        libui_menu.h
+	        libui_menu_item.h
+	        libui_multiline_entry.h
+	        libui_progressbar.h
+	        libui_radio_buttons.h
+	        libui_separator.h
+	        libui_slider.h
+	        libui_spinbox.h
+	        libui_stubs.c
+	        libui_tab.h
+	        libui_window.h)
+ (action (run ./desc.exe)))

@@ -8,9 +8,8 @@ external oo_id : unit -> int = "caml_fresh_oo_id"
 type 'a t = { value : 'a; id : int; name : name }
 
 let inj name value =
-  let result = { value; id = oo_id (); name } in
-  Obj.set_tag (Obj.repr result) Obj.object_tag;
-  result
+  let result : 'b = { value; id = oo_id (); name } in
+  (Obj.obj (Obj.with_tag Obj.object_tag (Obj.repr result)) : 'b)
 
 let prj x = x.value
 

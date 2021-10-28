@@ -1,25 +1,24 @@
-#use "topfind";;
-#require "goo-gen";;
-open Goo_model
+open Goo_gen
+open Model
 
 (* Some generic definitions to help binding libui *)
 
 (* A self_meth is a method that takes an instance of self as the first argument.  *)
 let self_meth cl ret name args =
-  meth cl ret name (arg "self" (Object cl) :: args)
+  meth cl ret name (arg "self" (objet cl) :: args)
 
 (* The `'` variant returns an abstract name that identifies the method:
      val self_meth : classe -> ... -> unit
      val self_meth' : classe -> ... -> func
 *)
 let self_meth' cl ret name args =
-  meth' cl ret name (arg "self" (Object cl) :: args)
+  meth' cl ret name (arg "self" (objet cl) :: args)
 
 (* A constructor is a method that returns an instance but doesn't take it as
    first argument. *)
 let constructor cl name args =
-  Goo_c.set_concrete cl;
-  meth cl [Object cl] name args
+  C.set_concrete cl;
+  meth cl [objet cl] name args
 
 (* A (boolean) property is a pair of methods: one to set, one to get. *)
 let prop cl name =
@@ -39,7 +38,7 @@ let () =
      `Goo_model` is about declaring the shared parts.  Entities of the model
      are given abstract name.  Specific knowledge can then be added
      per-backend. *)
-  Goo_c.package_declare ui ["#include \"ui.h\""];
+  C.package_declare ui ["#include \"ui.h\""];
   (* A function declaration is read in the "C" order:
      func <package> <return types> <function name> <parameters>;
 
@@ -74,13 +73,13 @@ let () =
      But dynamicity and redefinition are implementation details and don't
      affect the interface. Hence, override only matters to C backend.
   *)
-  Goo_c.override control goo_destroy;
+  C.override control goo_destroy;
   (* A control object is just a wrapper around uiControl: each instance
      contains a control field that points to the actual control.
      Like dynamic dispatch information, instance variables only matter to the
      implementation. They are not exposed in the interface.
   *)
-  Goo_c.instance_variable control "control" (Custom "uiControl *");
+  C.instance_variable control "control" (Custom "uiControl *");
   (* uintptr_t uiControlHandle(uiControl * ); *)
   (* Other basic methods. *)
   self_meth control [bool] "is_toplevel" [];
@@ -137,10 +136,10 @@ let () =
      The method "on_child_disconnect" will be invoked.  The abstract names
      returned by slot' and self_meth' are used to connect both.
   *)
-  Goo_c.on_slot_disconnect
+  C.on_slot_disconnect
     (slot' window "child" control_parent)
-    (self_meth' window [] "on_child_disconnect" ["object", Object control]);
-  self_meth window [] "child_connect" [arg "val" (Object control)];
+    (self_meth' window [] "on_child_disconnect" ["object", objet control]);
+  self_meth window [] "child_connect" [arg "val" (objet control)];
   prop window "margined";
   constructor window "new"
         [arg "title" string; arg "width" int; arg "height" int; arg "has_menubar" bool]
@@ -160,7 +159,7 @@ let box = classe ui "box" ~extend:control
 
 let () =
   collection box "children" control_parent;
-  self_meth box [] "append" [arg "child" (Object control); arg "stretchy" bool];
+  self_meth box [] "append" [arg "child" (objet control); arg "stretchy" bool];
   prop box "padded";
   constructor box "new_horizontal" [];
   constructor box "new_vertical" []
@@ -197,8 +196,8 @@ let tab = classe ui "tab" ~extend:control
 let () =
   self_meth tab [int] "num_pages" [];
   collection tab "tabs" control_parent;
-  self_meth tab [] "append" [arg "name" string; arg "child" (Object control)];
-  self_meth tab [] "insert_at" [arg "name" string; arg "before" int; arg "child" (Object control)];
+  self_meth tab [] "append" [arg "name" string; arg "child" (objet control)];
+  self_meth tab [] "insert_at" [arg "name" string; arg "before" int; arg "child" (objet control)];
   self_meth tab [bool] "is_tab_margined" [arg "page" int];
   self_meth tab [] "set_tab_margined" [arg "page" int; arg "margined" bool];
   constructor tab "new" []
@@ -208,10 +207,10 @@ let group = classe ui "group" ~extend:control
 let () =
   self_meth group [string] "title" [];
   self_meth group [] "set_title" [arg "title" string];
-  self_meth group [] "child_connect" [arg "val" (Object control)];
-  Goo_c.on_slot_disconnect
+  self_meth group [] "child_connect" [arg "val" (objet control)];
+  C.on_slot_disconnect
     (slot' group "child" control_parent)
-    (self_meth' group [] "on_child_disconnect" ["object", Object control]);
+    (self_meth' group [] "on_child_disconnect" ["object", objet control]);
   prop group "margined";
   constructor group "new" [arg "title" string]
 
@@ -293,7 +292,7 @@ let menu = classe ui "menu"
 let menu_item = classe ui "menu_item"
 
 let () =
-  Goo_c.instance_variable menu_item "control" (Custom "uiMenuItem *");
+  C.instance_variable menu_item "control" (Custom "uiMenuItem *");
   self_meth menu_item [] "enable" [];
   self_meth menu_item [] "disable" [];
   event menu_item [] "clicked" [];
@@ -303,21 +302,21 @@ let () =
 let menu_item_parent = port menu_item "parent" menu
 
 let () =
-  Goo_c.instance_variable menu "control" (Custom "uiMenu *");
+  C.instance_variable menu "control" (Custom "uiMenu *");
   collection menu "items" menu_item_parent;
-  self_meth menu [Object menu_item] "append_item" [arg "name" string];
-  self_meth menu [Object menu_item] "append_check_item" [arg "name" string];
-  self_meth menu [Object menu_item] "append_quit_item" [];
-  self_meth menu [Object menu_item] "append_preferences_item" [];
-  self_meth menu [Object menu_item] "append_about_item" [];
+  self_meth menu [objet menu_item] "append_item" [arg "name" string];
+  self_meth menu [objet menu_item] "append_check_item" [arg "name" string];
+  self_meth menu [objet menu_item] "append_quit_item" [];
+  self_meth menu [objet menu_item] "append_preferences_item" [];
+  self_meth menu [objet menu_item] "append_about_item" [];
   self_meth menu [] "append_separator" [];
   constructor menu "new" [arg "name" string]
 
 let () =
-  func ui [string] "open_file" [arg "parent" (Object window)];
-  func ui [string] "save_file" [arg "parent" (Object window)];
-  func ui [] "msg_box" [arg "parent" (Object window); arg "title" string; arg "description" string];
-  func ui [] "msg_box_error" [arg "parent" (Object window); arg "title" string; arg "description" string]
+  func ui [string] "open_file" [arg "parent" (objet window)];
+  func ui [string] "save_file" [arg "parent" (objet window)];
+  func ui [] "msg_box" [arg "parent" (objet window); arg "title" string; arg "description" string];
+  func ui [] "msg_box_error" [arg "parent" (objet window); arg "title" string; arg "description" string]
 
 let font_button = classe ui "font_button" ~extend:control
 
@@ -338,8 +337,8 @@ let form = classe ui "form" ~extend:control
 
 let () =
   collection form "children" control_parent;
-  self_meth form [] "append" [arg "name" string; arg "c" (Object control); arg "stretchy" bool];
-  self_meth form [] "delete" [arg "child" (Object control)];
+  self_meth form [] "append" [arg "name" string; arg "c" (objet control); arg "stretchy" bool];
+  self_meth form [] "delete" [arg "child" (objet control)];
   prop form "padded";
   constructor form "new" []
 
@@ -354,15 +353,15 @@ let grid = classe ui "grid" ~extend:control
 let () =
   collection grid "children" control_parent;
   self_meth grid [] "append" [
-    arg "c" (Object control);
+    arg "c" (objet control);
     arg "left" int; arg "top" int;
     arg "xspan" int; arg "yspan" int;
     arg "hexpand" bool; arg "halign" (flag align);
     arg "vexpand" bool; arg "valign" (flag align);
   ];
   self_meth grid [] "insert_at" [
-    arg "c" (Object control);
-    arg "existing" (Object control); arg "at" (flag at);
+    arg "c" (objet control);
+    arg "existing" (objet control); arg "at" (flag at);
     arg "xspan" int; arg "yspan" int;
     arg "hexpand" bool; arg "halign" (flag align);
     arg "vexpand" bool; arg "valign" (flag align);
@@ -380,8 +379,8 @@ let () =
      already exist with the skeleton of the implementation.  In most cases this
      implementation should be filled manually.
   *)
-  Goo_c.generate ui ~dir:"./";
+  C.generate ui ~dir:"./";
   (* The ML generator will produce libui_stubs.c and libui.ml that binds the
      model above to OCaml runtime. Nothing has to be written manually. *)
-  Goo_ml.generate ui ~dir:"./"
+  Ml.generate ui ~dir:"./"
 ;;

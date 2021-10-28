@@ -10,7 +10,7 @@
    An id is just a wrapper that gives a value a physical identity.
 *)
 type name = string
-type 'a id = 'a Goo_id.t
+type 'a id = 'a Id.t
 
 (* Abstract types for all entities manipulated in the model. *)
 type classe_desc
@@ -65,6 +65,8 @@ val bool: ctype
 val float: ctype
 val string: ctype
 val flag: enum -> ctype
+val objet: classe -> ctype
+val objet_opt: classe -> ctype
 
 (* Arguments of functions or methods are made from a name and type.
    Right now they are nothing more than a pair.  *)

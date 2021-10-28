@@ -158,7 +158,7 @@ let make_data_choosers_page mainwin =
   let button = button_new "Open File" in
   let entry = entry_new () in
   entry_set_readonly entry true;
-  Goo.set_event button event_button_clicked (fun self ->
+  Goo.set_event button event_button_clicked (fun _self ->
       let filename = open_file mainwin in
       entry_set_text entry (if filename = "" then "(cancelled)" else filename);
       raise Exit
@@ -169,7 +169,7 @@ let make_data_choosers_page mainwin =
   let button = button_new "Save File" in
   let entry = entry_new () in
   entry_set_readonly entry true;
-  Goo.set_event button event_button_clicked (fun self ->
+  Goo.set_event button event_button_clicked (fun _self ->
       let filename = save_file mainwin in
       entry_set_text entry (if filename = "" then "(cancelled)" else filename);
       failwith "lol"
@@ -182,7 +182,7 @@ let make_data_choosers_page mainwin =
   grid_append grid msggrid 0 2 2 1 false `Center false `Start;
 
   let button = button_new "Message Box" in
-  Goo.set_event button event_button_clicked (fun self ->
+  Goo.set_event button event_button_clicked (fun _self ->
       msg_box mainwin
         "This is a normal message box."
         "More detailed information can be shown here.";
@@ -190,7 +190,7 @@ let make_data_choosers_page mainwin =
     );
   grid_append msggrid button 0 0 1 1 false `Fill false `Fill;
   let button = button_new "Error Box" in
-  Goo.set_event button event_button_clicked (fun self ->
+  Goo.set_event button event_button_clicked (fun _self ->
       msg_box_error mainwin
         "This message box describes an error."
         "More detailed information can be shown here.";
@@ -214,7 +214,7 @@ let main () =
     | err -> failwith err
   end;
   let mainwin = window_new "OCaml goo/libui Control Gallery" 640 480 true in
-  Goo.set_event mainwin event_window_closing (fun self ->
+  Goo.set_event mainwin event_window_closing (fun _self ->
       quit ()
     );
   (*uiOnShouldQuit(onShouldQuit, mainwin);*)

@@ -1,4 +1,4 @@
-open Goo_model
+open Model
 module I = Introspect
 
 let class_name cl = I.(name_of (class_package cl) ^ "_" ^ name_of cl)
@@ -25,7 +25,8 @@ let is_dynamic, set_dynamic =
         | ("self", Object cl') :: _ when cl = cl' -> ()
         | _ ->
           Printf.ksprintf failwith
-            "Goo_c.dynamic: %s.%s to be a dynamic method, first argument should be a receiver 'self' of class %s"
+            "Goo_c.dynamic: for %s.%s to be a dynamic method, \
+             first argument should be a receiver 'self' of class %s"
             (class_name cl) (I.name_of func) (class_name cl)
       end
     | I.Fn_package pkg ->
@@ -42,7 +43,7 @@ let instance_variables, instance_variable =
   let table : (classe, variable list ref) I.Table.table = I.Table.create () in
   (fun cl -> List.rev !(get_list table cl)),
   (fun cl name v_type ->
-     add_to_list (get_list table cl) (Goo_id.inj name { v_type }))
+     add_to_list (get_list table cl) (Id.inj name { v_type }))
 
 let add_method_body, method_bodies =
   let table : (classe * func, string list) Hashtbl.t = Hashtbl.create 7 in
@@ -71,8 +72,17 @@ let override, overriden =
 
 let get_disconnect_callback, add_disconnect_callback =
   let table : (I.class_relation, func) Hashtbl.t = Hashtbl.create 7 in
-  (fun rel -> match Hashtbl.find table rel with x -> Some x | exception Not_found -> None),
-  (fun rel func -> not (Hashtbl.mem table rel) && (Hashtbl.add table rel func; true))
+  let get rel = match Hashtbl.find table rel with
+    | x -> Some x
+    | exception Not_found -> None
+  in
+  let add rel func =
+    if not (Hashtbl.mem table rel) then
+      (Hashtbl.add table rel func; true)
+    else
+      false
+  in
+  get, add
 
 let on_port_disconnect pt cb =
   if not (add_disconnect_callback (I.Rel_port pt) cb) then
@@ -105,7 +115,7 @@ let rec lookup_override cl func =
   else
     parent
 
-let () = set_dynamic Goo_model.goo_destroy
+let () = set_dynamic Model.goo_destroy
 
 let package_declare, package_get_declarations =
   let table : (package, string list ref) I.Table.table = I.Table.create () in
@@ -144,7 +154,7 @@ let number_of_properties cl0 =
   let count = ref 0 in
   iter_ancestors ~and_self:true cl0 (fun cl ->
       List.iter (fun var ->
-          match (Goo_id.prj var ).v_type with
+          match (Id.prj var ).v_type with
           | Object _ | Object_option _ -> incr count
           | _ -> ())
         (instance_variables cl);
@@ -161,7 +171,7 @@ let property_index cl0 name =
   let count = ref 0 in
   match iter_ancestors ~and_self:true cl0 (fun cl ->
       List.iter (fun var ->
-          match (Goo_id.prj var).v_type with
+          match (Id.prj var).v_type with
           | Object _ | Object_option _ ->
             if I.name_of var = name then raise Exit;
             incr count
@@ -304,7 +314,7 @@ let print_class_fields o cl_main =
   iter_ancestors ~and_self:true cl_main
     (fun cl ->
        List.iter (fun var ->
-           let name = I.name_of var and typ = (Goo_id.prj var).v_type in
+           let name = I.name_of var and typ = (Id.prj var).v_type in
            let name = match typ with
              | Object _ | Object_option _ -> "const " ^ name
              | _ -> name
@@ -503,7 +513,7 @@ let print_class_impl_h cl o =
   o "/* Heap variable setters */";
   o "";
   List.iter (fun var ->
-      let name = I.name_of var and typ = (Goo_id.prj var).v_type in
+      let name = I.name_of var and typ = (Id.prj var).v_type in
       match typ with
       | Object arg | Object_option arg ->
         print o "static inline void static_set_%s(%s *self, %s *v)" name
